@@ -78,13 +78,14 @@ class embedding_manager(object):
         embedding_matrix=np.zeros([len(manager.word_frequency),self.embedding_dim],dtype=np.float32)
         missing_word_num=0
         print 'Generating embedding matrix'
-        for idx,(word,frequency) in enumerate(self.word_frequency):
-            print '%d/%d ... %d word Unrecognized\r'%(idx+1,len(self.word_frequency),missing_word_num),
+        for idx,(word,frequency) in enumerate(manager.word_frequency):
+            print '%d/%d ... %d word Unrecognized\r'%(idx+1,len(manager.word_frequency),missing_word_num),
             if self.embedding_dict.has_key(word):
                 embedding_matrix[idx]=self.embedding_dict[word]
             else:
-                embedding_matrix[idx]=np.random.randn([self.embedding_dim,])*0.5
+                embedding_matrix[idx]=np.random.randn(self.embedding_dim)*0.5
                 missing_word_num+=1
+        print 'Completed! %d words, including %d unrecognized.'%(len(manager.word_frequency),missing_word_num)
         return embedding_matrix
 
     '''
@@ -105,7 +106,7 @@ class embedding_manager(object):
         if method.lower() in ['pca']:
             pca=PCA(n_components=dim)
             embedding_matrix=pca.fit_transform(embedding_matrix)
-        elif method.lower() in ['mds']
+        elif method.lower() in ['mds']:
             distance_matrix=euclidean_distances(embedding_matrix)
             distance_matrix=(distance_matrix+distance_matrix.T)/2.0         # To make the distance matrix symmetric
             seed=np.random.RandomState(seed=3)

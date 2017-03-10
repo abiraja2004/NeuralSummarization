@@ -30,7 +30,7 @@ class data_manager(object):
 
         # scanning the folder, build src/dest files dictionary, dest files are not created in this part
         for src_folder_or_file, dest_folder_or_file in zip(self.src_folders,self.dest_folders):
-            if os.path.isfolder(src_folder_or_file):
+            if os.path.isdir(src_folder_or_file):
                 for file in os.listdir(src_folder_or_file):
                     if os.path.isfile(src_folder_or_file+os.sep+file) and file.split('.')[-1] in ['summary',]:
                         self.src_file_list.append(src_folder_or_file+os.sep+file)
@@ -46,7 +46,12 @@ class data_manager(object):
 
         print 'There are %d files detected'%len(self.src_file_list)
 
-        for file in self.src_file_list:
+    def analyze_documents(self):
+        '''
+        >>> analyze the document list and build the word_frequency list
+        '''
+        for idx,file in enumerate(self.src_file_list):
+            print 'Analyze the document %d/%d ...\r'%(idx+1,len(self.src_file_list)),
             document=loader.parse_document(file)
             if len(document['sentences'])>self.max_length_document:
                 self.max_length_document=len(document['sentences'])
@@ -59,10 +64,30 @@ class data_manager(object):
                     if index==-1:
                         self.word_frequency.append([word,1])
                     else:
-                        self.word_frequency[idx][1]+=1
+                        self.word_frequency[index][1]+=1
 
         self.word_frequency=sorted(self.word_frequency,lambda x,y: -1 if x[1]>y[1] else 1)
         print 'The vocabulary size in the whole corpura is %d'%len(self.word_frequency)
+
+    '''
+    >>> load states from dictionary file
+    '''
+    def load_dict(self):
+        if not os.path.exists(self.dict_file):
+            print 'Failed to load dictionary from %s: file not exists'%self.dict_file
+            return False
+        self.word_frequency=[]
+        with open(self.dict_file,'r') as fopen:
+            for idx,line in enumerate(fopen):
+                if idx==0:
+                    self.max_length_document,self.max_length_sentence=map(int,line.split(' '))
+                else:
+                    parts=line.split(' ')
+                    frequency=int(parts[-1])
+                    word=' '.join(parts[1:-1])
+                    self.word_frequency.append([word,frequency])
+        print 'Load %d words from %s'%(len(self.word_frequency),self.dict_file)
+        return True
 
     '''
     >>> build word index file for document
@@ -79,23 +104,24 @@ class data_manager(object):
         # generate dictionary file
         print 'Generate dictionary file'
         if os.path.exists(self.dict_file) and force==False:
-            print 'Dictionary file %s already exists. To overwrite it, please set force flag to True'
+            print 'Dictionary file %s already exists. To overwrite it, please set force flag to True'%self.dict_file
         else:
             if not os.path.exists(os.path.dirname(self.dict_file)):
                 os.makedirs(os.path.dirname(self.dict_file))
             with open(self.dict_file,'w') as fopen:
+                fopen.write('%d %d\n'%(self.max_length_document,self.max_length_sentence))
                 for idx,(word,frequency) in enumerate(self.word_frequency):
                     if (idx+1)%1000==0:
                         print '%d/%d ...\r'%(idx+1,len(self.word_frequency)),
-                    fopen.write('%d:%s:%d\n'%(idx,word,frequency))
+                    fopen.write('%d %s %d\n'%(idx,word,frequency))
         print 'Completed!!         '
 
         # generate input matrix and labels
         print 'Generate input matrix and labels'
         for idx,(src_file,dest_file) in enumerate(zip(self.src_file_list, self.dest_file_list)):
-            print '%d/%d ...\r'%(idx+1,len(src_file_list)),
+            print '%d/%d ...\r'%(idx+1,len(self.src_file_list)),
             if os.path.exists(dest_file) and force==False:
-                print 'Information file %s already exists. To overwrite it, please set force flag to True'
+                print 'Information file %s already exists. To overwrite it, please set force flag to True'%dest_file
             else:
                 if not os.path.exists(os.path.dirname(dest_file)):
                     os.makedirs(os.path.dirname(dest_file))
@@ -117,7 +143,7 @@ class data_manager(object):
     def init_batch_gen(self,permutation):
         self.src_file_list=np.array(self.src_file_list)
         self.dest_file_list=np.array(self.dest_file_list)
-        if permutation=True:
+        if permutation==True:
             number_files=len(self.src_file_list)
             orders=np.arange(number_files)
             orders=np.random.permutation(orders)
@@ -150,15 +176,25 @@ class data_manager(object):
             lines=open(dest_file,'r').readlines()
             lines=map(lambda x: x[:-1] if x[-1]=='\n' else x, lines)
             number_of_sentences=int(lines[0])
-            assert(number_of_sentences==len(lines)+2)
+            assert(number_of_sentences+2==len(lines))
 
-            masks[batch_idx,:number_of_sentences].fill(1)               # create the mask for this sentence
             for sentence_idx in xrange(number_of_sentences):
                 sentence=lines[sentence_idx+1]
                 word_idx_list=map(int,sentence.split(','))
-                input_matrix[batch_size,sentence_idx,:len(word_idx_list)]=word_idx_list
+                input_matrix[batch_idx,sentence_idx,:len(word_idx_list)]=word_idx_list
             labels_this_sentence=map(int,lines[-1].split(','))
-            labels[batch_size,:number_of_sentences]=labels_this_sentence
+            masks_this_sentence=np.ones([number_of_sentences],dtype=int)
+            for idx,(label,mask) in enumerate(zip(labels_this_sentence,masks_this_sentence)):
+                if label==2:
+                    if label_policy in ['min',]:
+                        labels_this_sentence[idx]=0
+                    elif label_policy in ['max',]:
+                        labels_this_sentence[idx]=1
+                    elif label_policy in ['clear',]:
+                        masks_this_sentence[idx]=0
+
+            masks[batch_idx,:number_of_sentences]=masks_this_sentence               # create the mask for this sentence
+            labels[batch_idx,:number_of_sentences]=labels_this_sentence
 
         self.index+=batch_size
         return input_matrix,masks,labels

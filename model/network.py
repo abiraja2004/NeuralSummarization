@@ -32,6 +32,8 @@ class sentenceExtractorModel(object):
         self.feature_map=hyper_params['feature_map']
         self.update_policy=hyper_params['update_policy']
 
+        self.sess=None
+
         self.embedding_matrix=tf.Variable(tf.random_uniform([self.vocab_size,self.embedding_dim],-1.0,1.0),dtype=tf.float32) \
             if not hyper_params.has_key('embedding_matrix') else tf.Variable(hyper_params['embedding_matrix'],dtype=tf.float32)
 
@@ -50,7 +52,7 @@ class sentenceExtractorModel(object):
                 if slice_idx!=0:
                     scope.reuse_variables()
                 parts=[]
-                for filter_idx, filter_size in enumerate(filter_sizes):
+                for filter_idx, filter_size in enumerate(self.filter_sizes):
                     convpool_output=self.convpool(input_data_3d=input_slices[slice_idx],
                         filter_width=filter_size, name='filter%d'%filter_idx)       # of size [self.batch_size, self.feature_map]
                     parts.append(convpool_output)
@@ -61,7 +63,7 @@ class sentenceExtractorModel(object):
 
         # LSTM-based document encoding part
         with tf.variable_scope('LSTM') as scope:
-            LSTM_cell=tf.contrib.rnn.BasicLSTMCell(rnn_size)        # Contruct a LSTM cell
+            LSTM_cell=tf.contrib.rnn.BasicLSTMCell(self.rnn_size)        # Contruct a LSTM cell
             state_sequences=[]
             state=LSTM_cell.zero_state(self.batch_size,tf.float32)
             for sentence_idx in xrange(self.sequence_num):
@@ -77,7 +79,7 @@ class sentenceExtractorModel(object):
         with tf.variable_scope('LSTM',reuse=True) as scope:
             _, state=LSTM_cell(buffer_input,state)
         with tf.variable_scope('MLP',reuse=False) as scope:
-            mlp_input=tf.concat([state_sequences[0],state],axis=1)
+            mlp_input=tf.concat([state_sequences[0],state[1]],axis=1)
             sentence_prediction=self.mlp(input_data=mlp_input, hidden_sizes=self.mlp_neurons)
             predictions.append(sentence_prediction)
         for sentence_idx in xrange(self.sequence_num-1):
@@ -85,14 +87,14 @@ class sentenceExtractorModel(object):
             with tf.variable_scope('LSTM',reuse=True) as scope:
                 _, state=LSTM_cell(input_sentence_embedding,state)
             with tf.variable_scope('MLP',reuse=True) as scope:
-                mlp_input=tf.concat([state_sequences[sentence_idx+1],state],axis=1)
+                mlp_input=tf.concat([state_sequences[sentence_idx+1],state[1]],axis=1)
                 sentence_prediction=self.mlp(input_data=mlp_input, hidden_sizes=self.mlp_neurons)
                 predictions.append(sentence_prediction)
 
         # Generate final prediction and loss
         self.final_prediction=tf.concat(predictions, axis=1)        # of size [self.batch_size, self.sequence_num]
-        self.loss= -tf.reduce_mean(tf.multiply(self.masks, tf.multiply(
-            self.labels, tf.log(self.final_prediction))+tf.multiply(1-self.labels, tf.log(1-self.final_prediction))))
+        self.loss= -tf.reduce_mean(tf.multiply(tf.to_float(self.masks), tf.multiply(
+            tf.to_float(self.labels), tf.log(self.final_prediction))+tf.multiply(1.0 - tf.to_float(self.labels), tf.log(1.0-self.final_prediction))))
 
         if self.update_policy['name'].lower() in ['sgd', 'stochastic gradient descent']:
             learning_rate=self.update_policy['learning_rate']
@@ -116,7 +118,7 @@ class sentenceExtractorModel(object):
             self.optimizer=tf.train.RMSPropOptimizer(learning_rate, decay, momentum, epsilon)
         else:
             raise ValueError('Unrecognized Optimizer Category: %s'%self.update_policy['name'])
-        self.update=optimizer.minimize(self.loss)
+        self.update=self.optimizer.minimize(self.loss)
 
     def convpool(self, input_data_3d, filter_width, name, stddev=0.02):
         '''
@@ -131,7 +133,8 @@ class sentenceExtractorModel(object):
             W=tf.get_variable(name='W',shape=[filter_width,self.embedding_dim,1,self.feature_map],
                 initializer=tf.truncated_normal_initializer(stddev=stddev))
             conv_output=tf.nn.conv2d(input_data,W,strides=[1,1,1,1],padding='VALID')
-            pool_output=tf.nn.max_pool(conv_output,ksize=[1,self.sequence_length-filter_width+1,1,1],padding='VALID')
+            pool_output=tf.nn.max_pool(conv_output,ksize=[1,self.sequence_length-filter_width+1,1,1],
+                strides=[1,self.sequence_length-filter_width+1,1,1],padding='VALID')
             return tf.reshape(pool_output,shape=[self.batch_size,self.feature_map])
 
     def mlp(self, input_data, hidden_sizes, name='mlp', stddev=0.02):
@@ -161,3 +164,52 @@ class sentenceExtractorModel(object):
             data=tf.nn.sigmoid(tf.add(tf.matmul(data,W),b))                     # of size [self.batch_size, 1]
             return data
 
+    def train_validate_test_init(self):
+        '''
+        >>> Initialize the training validation and test phrase
+        '''
+        self.sess=tf.Session()
+        init=tf.global_variables_initializer()
+        self.sess.run(init)
+        self.decision_func=np.vectorize(lambda x: 1 if x>0.5 else 0)
+
+    def train(self,inputs,masks,labels):
+        '''
+        >>> Training process on a batch data
+        >>> inputs: np.array, of size [self.batch_size, self.sequence_num,self.sequence_length]
+        >>> masks: np.array, of size [self.batch_size, self.sequence_num]
+        >>> labels: np.array, of size [self.batch_size, self.sequence_num]
+        '''
+        train_dict={self.inputs:inputs, self.masks:masks, self.labels:labels}
+        self.sess.run(self.update,feed_dict=train_dict)
+        final_prediction_this_batch, loss_this_batch=self.sess.run([self.final_prediction, self.loss],feed_dict=train_dict)
+        final_prediction_this_batch=self.decision_func(final_prediction_this_batch)
+        return final_prediction_this_batch, loss_this_batch
+
+    def validate(self,inputs,masks,labels):
+        '''
+        >>> Validation phrase
+        >>> Parameter table is the same as self.train
+        '''
+        validate_dict={self.inputs:inputs, self.masks:masks, self.labels:labels}
+        final_prediction_this_batch, loss_this_batch=self.sess.run([self.final_prediction, self.loss],feed_dict=validate_dict)
+        final_prediction_this_batch=self.decision_func(final_prediction_this_batch)
+        return final_prediction_this_batch, loss_this_batch
+
+    def test(self,inputs,masks):
+        '''
+        >>> Test phrase
+        >>> Parameter table is almost the same as self.train
+        >>> No labels are provided
+        '''
+        test_dict={self.inputs:inputs, self.masks:masks}
+        final_prediction_this_batch=self.sess.run([self.final_prediction],feed_dict=test_dict)
+        final_prediction_this_batch=self.decision_func(final_prediction_this_batch)
+        return final_prediction_this_batch
+
+    def train_validate_test_end(self):
+        '''
+        >>> End current training validation and test phrase
+        '''
+        self.sess.close()
+        self.sess=None
