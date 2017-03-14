@@ -31,6 +31,7 @@ class sentenceExtractorModel(object):
         self.filter_sizes=hyper_params['filter_sizes']
         self.feature_map=hyper_params['feature_map']
         self.update_policy=hyper_params['update_policy']
+        self.name='sentence extraction model' if not hyper_params.has_key('name') else hyper_params['name']
 
         self.sess=None
 
@@ -206,6 +207,24 @@ class sentenceExtractorModel(object):
         final_prediction_this_batch=self.sess.run([self.final_prediction],feed_dict=test_dict)
         final_prediction_this_batch=self.decision_func(final_prediction_this_batch)
         return final_prediction_this_batch
+
+    def dump_params(self,file2dump):
+        '''
+        >>> Save the parameters
+        >>> file2dump: str, file to store the parameters
+        '''
+        saver=tf.train.Saver()
+        saved_path=saver.save(self.sess, file2dump)
+        print 'parameters are saved in file %s'%saved_path
+
+    def load_params(self,file2load):
+        '''
+        >>> Load the parameters
+        >>> file2load: str, file to load the parameters
+        '''
+        saver=tf.train.Saver()
+        saver.restore(self.sess, file2load)
+        print 'parameters are imported from file %s'%file2load
 
     def train_validate_test_end(self):
         '''

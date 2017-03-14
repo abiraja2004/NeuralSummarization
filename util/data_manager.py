@@ -1,6 +1,7 @@
 import os
 import sys
 import loader
+import random
 import numpy as np
 
 '''
@@ -20,13 +21,19 @@ class data_manager(object):
         self.dest_folders=hyper_params['dest_folders']
         assert(len(self.src_folders)==len(self.dest_folders))
         self.dict_file=hyper_params['dict_file']
+        self.word_frequency_threshold=hyper_params['word_frequency_threshold'] if hyper_params.has_key('word_frequency_threshold') else 0
+        self.document_length_threshold=hyper_params['document_length_threshold'] if hyper_params.has_key('document_length_threshold') else 100
+        self.sentence_length_threshold=hyper_params['sentence_length_threshold'] if hyper_params.has_key('sentence_length_threshold') else 100
+        self.valid_word_num=0
 
         self.word_frequency=[]
         self.max_length_sentence=0
         self.max_length_document=0
         self.src_file_list=[]                       # source files with extension '.summary'
         self.dest_file_list=[]                      # destination files with extension '.info'
-        self.index=0                                # current position, used for generating batch data
+
+        self.file_set={}                            # sets of files, like training and test set
+        self.file_set_pt={}                         # points for each set of files
 
         # scanning the folder, build src/dest files dictionary, dest files are not created in this part
         for src_folder_or_file, dest_folder_or_file in zip(self.src_folders,self.dest_folders):
@@ -67,7 +74,10 @@ class data_manager(object):
                         self.word_frequency[index][1]+=1
 
         self.word_frequency=sorted(self.word_frequency,lambda x,y: -1 if x[1]>y[1] else 1)
-        print 'The vocabulary size in the whole corpura is %d'%len(self.word_frequency)
+        while self.valid_word_num<len(self.word_frequency) and self.word_frequency[self.valid_word_num][1]>=self.word_frequency_threshold:
+            self.valid_word_num+=1
+        print 'The vocabulary size in the whole corpura is %d,'%len(self.word_frequency)
+        print 'There are %d words whose frequency is above %d'%(self.valid_word_num,self.word_frequency_threshold)
 
     '''
     >>> load states from dictionary file
@@ -86,7 +96,11 @@ class data_manager(object):
                     frequency=int(parts[-1])
                     word=' '.join(parts[1:-1])
                     self.word_frequency.append([word,frequency])
+
+        while self.valid_word_num<len(self.word_frequency) and self.word_frequency[self.valid_word_num][1]>=self.word_frequency_threshold:
+            self.valid_word_num+=1
         print 'Load %d words from %s'%(len(self.word_frequency),self.dict_file)
+        print 'There are %d words whose frequency is above %d'%(self.valid_word_num,self.word_frequency_threshold)
         return True
 
     '''
@@ -137,21 +151,34 @@ class data_manager(object):
         print 'Completed!!         '
 
     '''
-    >>> initialization of data batch generation
-    >>> permutation: boolean, whether or not to permute the document
+    >>> initialization of data batch for a set of files
+    >>> set_label: str, name of the file set
+    >>> file_list: list<str> or None, name of files
+    >>> permutation: bool, whether or not to permute the documents
     '''
-    def init_batch_gen(self,permutation):
-        self.src_file_list=np.array(self.src_file_list)
-        self.dest_file_list=np.array(self.dest_file_list)
+    def init_batch_gen(self,set_label,file_list,permutation):
+        if self.file_set.has_key(set_label) and file_list!=None:
+            raise Exception('Can not initialize the dataset %s twice'%set_label)
+
+        if file_list!=None:
+            self.file_set[set_label]=[]
+            for file_or_folder in file_list:
+                if os.path.isdir(file_or_folder):
+                    for file in os.listdir(file_or_folder):
+                        if file.split('.')[-1] in ['info',]:
+                            self.file_set[set_label].append(file_or_folder+os.sep+file)
+                elif os.path.isfile(file_or_folder):
+                    if file_or_folder.split('.')[-1] in ['info',]:
+                        self.file_set[set_label].append(file_or_folder)
+
+        self.file_set[set_label]=np.array(self.file_set[set_label])
+        self.file_set_pt[set_label]=0
         if permutation==True:
-            number_files=len(self.src_file_list)
-            orders=np.arange(number_files)
-            orders=np.random.permutation(orders)
-            self.src_file_list=self.src_file_list[orders]
-            self.dest_file_list=self.dest_file_list[orders]
+            self.file_set[set_label]=np.random.permutation(self.file_set[set_label])
 
     '''
     >>> get the training data, including input matrix, masks and labels
+    >>> set_label: str, set label e.g. 'train','validate'
     >>> batch_size: int, batch size
     >>> label policy: str in ['min','max','clear'], control if ambiguous sentences are not extracted/extracted/dropped
     >>> outputs:
@@ -159,44 +186,57 @@ class data_manager(object):
         >>> masks: [batch_size, max_document_length]
         >>> labels: [batch_size, max_document_length]
     '''
-    def batch_gen(self,batch_size,label_policy):
+    def batch_gen(self,set_label,batch_size,label_policy):
         if not label_policy in ['min','max','clear']:
             raise ValueError('Unrecognized labeling policy %s'%label_policy)
-        if batch_size>len(self.src_file_list):
-            raise ValueError('Too large batch size %d, there are %d documents in total'%(batch_size,len(self.src_file_list)))
-        if self.index+batch_size>len(self.src_file_list):           # Reach the end of the corpus
-            self.index=0
-            self.init_batch_gen(permutation=True)
-        input_matrix=np.zeros([batch_size,self.max_length_document,self.max_length_sentence],dtype=np.int)
-        masks=np.zeros([batch_size,self.max_length_document],dtype=np.int)
-        labels=np.zeros([batch_size,self.max_length_document],dtype=np.int)
+        if not self.file_set.has_key(set_label):
+            raise ValueError('Set %s has not been initialized yet'%set_label)
+        if batch_size>len(self.file_set[set_label]):
+            raise ValueError('Too large batch size %d, there are %d documents in total'%(batch_size,len(self.file_set[set_label])))
+
+        if self.file_set_pt[set_label]+batch_size>len(self.file_set[set_label]): # Reach the end of the corpus
+            self.init_batch_gen(set_label=set_label,file_list=None,permutation=True)
+        input_matrix=np.zeros([batch_size,self.document_length_threshold,self.sentence_length_threshold],dtype=np.int)
+        masks=np.zeros([batch_size,self.document_length_threshold],dtype=np.int)
+        labels=np.zeros([batch_size,self.document_length_threshold],dtype=np.int)
 
         for batch_idx in xrange(batch_size):
-            dest_file=self.dest_file_list[batch_idx+self.index]
+            dest_file=self.dest_file_list[batch_idx+self.file_set_pt[set_label]]
             lines=open(dest_file,'r').readlines()
             lines=map(lambda x: x[:-1] if x[-1]=='\n' else x, lines)
+            labels_this_document=map(int,lines[-1].split(','))
             number_of_sentences=int(lines[0])
             assert(number_of_sentences+2==len(lines))
 
+            offset=0                                    # Cut short documents which is too long
+            if number_of_sentences>self.document_length_threshold:
+                offset=random.randint(0,number_of_sentences-self.document_length_threshold)
+                labels_this_document=labels_this_document[offset:offset+self.document_length_threshold]
+                number_of_sentences=self.document_length_threshold
+
+            masks_this_document=np.ones([number_of_sentences],dtype=int)
             for sentence_idx in xrange(number_of_sentences):
-                sentence=lines[sentence_idx+1]
+                sentence=lines[sentence_idx+1+offset]
                 word_idx_list=map(int,sentence.split(','))
+                word_idx_list=map(lambda x:x if x<self.valid_word_num else self.valid_word_num, word_idx_list)
+                if len(word_idx_list)>self.sentence_length_threshold:
+                    sentence_offset=random.randint(0,len(word_idx_list)-self.sentence_length_threshold)
+                    word_idx_list=word_idx_list[sentence_offset:sentence_offset+self.sentence_length_threshold]
+
                 input_matrix[batch_idx,sentence_idx,:len(word_idx_list)]=word_idx_list
-            labels_this_sentence=map(int,lines[-1].split(','))
-            masks_this_sentence=np.ones([number_of_sentences],dtype=int)
-            for idx,(label,mask) in enumerate(zip(labels_this_sentence,masks_this_sentence)):
+            for idx,(label,mask) in enumerate(zip(labels_this_document,masks_this_document)):
                 if label==2:
                     if label_policy in ['min',]:
-                        labels_this_sentence[idx]=0
+                        labels_this_document[idx]=0
                     elif label_policy in ['max',]:
-                        labels_this_sentence[idx]=1
+                        labels_this_document[idx]=1
                     elif label_policy in ['clear',]:
-                        masks_this_sentence[idx]=0
+                        masks_this_document[idx]=0
 
-            masks[batch_idx,:number_of_sentences]=masks_this_sentence               # create the mask for this sentence
-            labels[batch_idx,:number_of_sentences]=labels_this_sentence
+            masks[batch_idx,:number_of_sentences]=masks_this_document               # create the mask for this sentence
+            labels[batch_idx,:number_of_sentences]=labels_this_document
 
-        self.index+=batch_size
+        self.file_set_pt[set_label]+=batch_size
         return input_matrix,masks,labels
 
     '''
