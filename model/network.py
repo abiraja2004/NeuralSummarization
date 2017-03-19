@@ -85,7 +85,10 @@ class sentenceExtractorModel(object):
             sentence_prediction=self.mlp(input_data=mlp_input, hidden_sizes=self.mlp_neurons)
             predictions.append(sentence_prediction)
         for sentence_idx in xrange(self.sequence_num-1):
-            input_sentence_embedding=tf.multiply(tf.matmul(predictions[-1]*self.ratio+self.labels[:,sentence_idx]*(1.0-self.ratio)
+            #print 'shape: labels subtensor: ', self.labels[:,sentence_idx].shape
+            #print 'shape: prediction: ',predictions[-1].shape
+            #print 'shape: ratio: ',self.ratio.shape
+            input_sentence_embedding=tf.multiply(tf.matmul(predictions[-1]*self.ratio+tf.to_float(self.labels[:,sentence_idx:sentence_idx+1])*(1.0-self.ratio)
                 ,expand_matrix),sentence_embeddings[sentence_idx])
             with tf.variable_scope('LSTM',reuse=True) as scope:
                 _, state=LSTM_cell(input_sentence_embedding,state)

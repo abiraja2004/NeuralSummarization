@@ -39,10 +39,10 @@
                 <param name="decay" type="float"></param>
             </update_policy>
         </sentence_extract_model>
-        <param name="batches" type="int">400</param>
-        <param name="validation_frequency" type="int">10</param>
+        <param name="batches" type="int">100000</param>
+        <param name="validation_frequency" type="int">5000</param>
         <param name="model_saved_folder" type="str">model_saved</param>
-        <param name="validation_batches" type="int">5</param>
+        <param name="validation_batches" type="int">5000</param>
     </network>
     <embedding>
         <embedding_manager>
