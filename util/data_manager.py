@@ -27,7 +27,7 @@ class data_manager(object):
         self.sentence_length_threshold=hyper_params['sentence_length_threshold'] if hyper_params.has_key('sentence_length_threshold') else 100
         self.valid_word_num=0
 
-        self.word_frequency=[]
+        self.word_frequency=[]                      # list of [[word1, frequency1],[word2, frequency2] ...]
         self.max_length_sentence=0
         self.max_length_document=0
         self.src_file_list=[]                       # source files with extension '.summary'
@@ -89,7 +89,9 @@ class data_manager(object):
         print 'There are %d words whose frequency is above %d'%(self.valid_word_num,self.word_frequency_threshold)
 
     '''
-    >>> load states from dictionary file
+    >>> load states from dictionary file 
+    i.e restore the value of self.word_frequency, self.valid_word_num and self.entity_name_list
+    from file self.dict_file, self.entity_name_file
     '''
     def load_dict(self):
         if not os.path.exists(self.dict_file):
@@ -121,6 +123,7 @@ class data_manager(object):
     >>> force: boolean, whether or not to overwrite existing files
     >>> output:
         >>> dict_file with each line 'INDEX:WORD:FREQUENCY'
+        >>> entity_name_file with each line 'ENTITY_NAME'
         >>> input matrix and masks:
             first line: number of sentences NUMBER
             next NUMBER lines: NUMBER sentences

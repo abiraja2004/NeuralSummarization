@@ -176,25 +176,26 @@ class sentenceExtractorModel(object):
         self.sess.run(init)
         self.decision_func=np.vectorize(lambda x: 1 if x>0.5 else 0)
 
-    def train(self,inputs,masks,labels):
+    def train(self,inputs,masks,labels,ratio):
         '''
         >>> Training process on a batch data
         >>> inputs: np.array, of size [self.batch_size, self.sequence_num,self.sequence_length]
         >>> masks: np.array, of size [self.batch_size, self.sequence_num]
         >>> labels: np.array, of size [self.batch_size, self.sequence_num]
+        >>> ratio: float, 1 means totally using the prediction, 0 means totally using the ground truth
         '''
-        train_dict={self.inputs:inputs, self.masks:masks, self.labels:labels}
+        train_dict={self.inputs:inputs, self.masks:masks, self.labels:labels, self.ratio:ratio}
         self.sess.run(self.update,feed_dict=train_dict)
         final_prediction_this_batch, loss_this_batch=self.sess.run([self.final_prediction, self.loss],feed_dict=train_dict)
         final_prediction_this_batch=self.decision_func(final_prediction_this_batch)
         return final_prediction_this_batch, loss_this_batch
 
-    def validate(self,inputs,masks,labels):
+    def validate(self,inputs,masks,labels,ratio):
         '''
         >>> Validation phrase
         >>> Parameter table is the same as self.train
         '''
-        validate_dict={self.inputs:inputs, self.masks:masks, self.labels:labels}
+        validate_dict={self.inputs:inputs, self.masks:masks, self.labels:labels, self.ratio:ratio}
         final_prediction_this_batch, loss_this_batch=self.sess.run([self.final_prediction, self.loss],feed_dict=validate_dict)
         final_prediction_this_batch=self.decision_func(final_prediction_this_batch)
         return final_prediction_this_batch, loss_this_batch
@@ -205,7 +206,10 @@ class sentenceExtractorModel(object):
         >>> Parameter table is almost the same as self.train
         >>> No labels are provided
         '''
-        test_dict={self.inputs:inputs, self.masks:masks}
+        labels=np.zeros([self.batch_size, self.sequence_num], dtype=np.float32)         # Fake labels
+        ratio=1.0                                                                       # ratio has to be 1.0 to make prediction label independent
+
+        test_dict={self.inputs:inputs, self.masks:masks, self.labels:labels, self.ratio:ratio}
         final_prediction_this_batch,=self.sess.run([self.final_prediction,],feed_dict=test_dict)
         final_prediction_this_batch=self.decision_func(final_prediction_this_batch)
         return final_prediction_this_batch
