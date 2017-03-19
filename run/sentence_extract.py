@@ -25,9 +25,8 @@ data_manager_params=data_process_params['data_manager_params']
 file_sets=data_process_params['file_sets']
 
 my_data_manager=data_manager.data_manager(data_manager_params)
-my_data_manager.load_dict()
-# my_data_manager.scan_folders()
-# my_data_manager.build_files(force=force_flag)
+my_data_manager.analyze_documents()
+my_data_manager.build_files(force=force_flag)
 for key in file_sets:
     file_set=file_sets[key]
     my_data_manager.init_batch_gen(set_label=key,file_list=file_set,permutation=True)

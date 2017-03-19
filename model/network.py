@@ -39,8 +39,9 @@ class sentenceExtractorModel(object):
             if not hyper_params.has_key('embedding_matrix') else tf.Variable(hyper_params['embedding_matrix'],dtype=tf.float32)
 
         self.inputs=tf.placeholder(tf.int32,shape=[self.batch_size, self.sequence_num,self.sequence_length]) # None represents the number of sequences
-        self.masks=tf.placeholder(tf.int32,shape=[self.batch_size, self.sequence_num])                        # Masks - 1 if the sentence is valid else 0
+        self.masks=tf.placeholder(tf.int32,shape=[self.batch_size, self.sequence_num])                       # Masks - 1 if the sentence is valid else 0
         self.labels=tf.placeholder(tf.int32,shape=[self.batch_size, self.sequence_num])                      # Labels of each sentences
+        self.ratio=tf.placeholder(tf.float32,shape=())                                                       # Ratio of P_t using ground truth or prediction
 
         self.embedding_output=tf.nn.embedding_lookup(self.embedding_matrix,self.inputs)                      # shape = [self.batch_size, sequence_num, self.sequence_length, self.embedding_dim]
 
@@ -84,7 +85,8 @@ class sentenceExtractorModel(object):
             sentence_prediction=self.mlp(input_data=mlp_input, hidden_sizes=self.mlp_neurons)
             predictions.append(sentence_prediction)
         for sentence_idx in xrange(self.sequence_num-1):
-            input_sentence_embedding=tf.multiply(tf.matmul(predictions[-1],expand_matrix),sentence_embeddings[sentence_idx])
+            input_sentence_embedding=tf.multiply(tf.matmul(predictions[-1]*self.ratio+self.labels[:,sentence_idx]*(1.0-self.ratio)
+                ,expand_matrix),sentence_embeddings[sentence_idx])
             with tf.variable_scope('LSTM',reuse=True) as scope:
                 _, state=LSTM_cell(input_sentence_embedding,state)
             with tf.variable_scope('MLP',reuse=True) as scope:
@@ -204,7 +206,7 @@ class sentenceExtractorModel(object):
         >>> No labels are provided
         '''
         test_dict={self.inputs:inputs, self.masks:masks}
-        final_prediction_this_batch=self.sess.run([self.final_prediction],feed_dict=test_dict)
+        final_prediction_this_batch,=self.sess.run([self.final_prediction,],feed_dict=test_dict)
         final_prediction_this_batch=self.decision_func(final_prediction_this_batch)
         return final_prediction_this_batch
 

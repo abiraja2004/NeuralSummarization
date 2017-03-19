@@ -21,6 +21,7 @@ class data_manager(object):
         self.dest_folders=hyper_params['dest_folders']
         assert(len(self.src_folders)==len(self.dest_folders))
         self.dict_file=hyper_params['dict_file']
+        self.entity_name_file=hyper_params['entity_name_file']
         self.word_frequency_threshold=hyper_params['word_frequency_threshold'] if hyper_params.has_key('word_frequency_threshold') else 0
         self.document_length_threshold=hyper_params['document_length_threshold'] if hyper_params.has_key('document_length_threshold') else 100
         self.sentence_length_threshold=hyper_params['sentence_length_threshold'] if hyper_params.has_key('sentence_length_threshold') else 100
@@ -34,6 +35,8 @@ class data_manager(object):
 
         self.file_set={}                            # sets of files, like training and test set
         self.file_set_pt={}                         # points for each set of files
+
+        self.entity_name_list=[]
 
         # scanning the folder, build src/dest files dictionary, dest files are not created in this part
         for src_folder_or_file, dest_folder_or_file in zip(self.src_folders,self.dest_folders):
@@ -58,7 +61,8 @@ class data_manager(object):
         >>> analyze the document list and build the word_frequency list
         '''
         for idx,file in enumerate(self.src_file_list):
-            print 'Analyze the document %d/%d ...\r'%(idx+1,len(self.src_file_list)),
+            print 'Analyze the document %d/%d - %.1f%%\r'%(
+                idx+1,len(self.src_file_list),float(idx+1)/float(len(self.src_file_list))*100),
             document=loader.parse_document(file)
             if len(document['sentences'])>self.max_length_document:
                 self.max_length_document=len(document['sentences'])
@@ -72,6 +76,11 @@ class data_manager(object):
                         self.word_frequency.append([word,1])
                     else:
                         self.word_frequency[index][1]+=1
+            for entity in document['entity2name']:
+                self.entity_name_list.append(document['entity2name'][entity])
+
+        self.entity_name_list=list(set(self.entity_name_list))
+        print 'There are %d entity name in total'%(len(self.entity_name_list))
 
         self.word_frequency=sorted(self.word_frequency,lambda x,y: -1 if x[1]>y[1] else 1)
         while self.valid_word_num<len(self.word_frequency) and self.word_frequency[self.valid_word_num][1]>=self.word_frequency_threshold:
@@ -101,6 +110,9 @@ class data_manager(object):
             self.valid_word_num+=1
         print 'Load %d words from %s'%(len(self.word_frequency),self.dict_file)
         print 'There are %d words whose frequency is above %d'%(self.valid_word_num,self.word_frequency_threshold)
+
+        self.entity_name_list=open(self.entity_name_file,'r').readlines()
+        self.entity_name_list=map(lambda x: x[:-1] if x[-1]=='\n' else x, self.entity_name_list)
         return True
 
     '''
@@ -128,6 +140,17 @@ class data_manager(object):
                     if (idx+1)%1000==0:
                         print '%d/%d ...\r'%(idx+1,len(self.word_frequency)),
                     fopen.write('%d %s %d\n'%(idx,word,frequency))
+        print 'Completed!!         '
+
+        print 'Generate entity dictionary file'
+        if os.path.exists(self.entity_name_file) and force==False:
+            print 'Entity name file %s already exists. To overwrite it, please set force flag to True'%self.entity_name_file
+        else:
+            if not os.path.exists(os.path.dirname(self.entity_name_file)):
+                os.makedirs(os.path.dirname(self.entity_name_file))
+            with open(self.entity_name_file,'w') as fopen:
+                for entity in self.entity_name_list:
+                    fopen.write('%s\n'%entity)
         print 'Completed!!         '
 
         # generate input matrix and labels

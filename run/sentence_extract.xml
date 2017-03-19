@@ -4,11 +4,12 @@
             <param name="src_folders" type="list_str">data/documents/neuralsum/dailymail/training_text,data/documents/neuralsum/dailymail/validation_text,data/documents/neuralsum/dailymail/test_text</param>
             <param name="dest_folders" type="list_str">data/documents/neuralsum/dailymail/training_index,data/documents/neuralsum/dailymail/validation_index,data/documents/neuralsum/dailymail/test_index</param>
             <param name="dict_file" type="str">data/documents/neuralsum/dailymail/dict.txt</param>
+            <param name="entity_name_file" type="str">data/documents/neuralsum/dailymail/entity.txt</param>
             <param name="word_frequency_threshold" type="int">100</param>
             <param name="document_length_threshold" type="int">60</param>
             <param name="sentence_length_threshold" type="int">100</param>
         </data_manager_params>
-        <param name="force" type="bool">False</param>
+        <param name="force" type="bool">True</param>
         <file_sets>
             <param name="train" type="list_str">data/documents/neuralsum/dailymail/training_index</param>
             <param name="validate" type="list_str">data/documents/neuralsum/dailymail/validation_index</param>
