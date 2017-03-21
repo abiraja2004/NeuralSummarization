@@ -220,8 +220,10 @@ class data_manager(object):
         if batch_size>len(self.file_set[set_label]):
             raise ValueError('Too large batch size %d, there are %d documents in total'%(batch_size,len(self.file_set[set_label])))
 
+        new_epoch=False
         if self.file_set_pt[set_label]+batch_size>len(self.file_set[set_label]): # Reach the end of the corpus
             self.init_batch_gen(set_label=set_label,file_list=None,permutation=True)
+            new_epoch=True
         input_matrix=np.zeros([batch_size,self.document_length_threshold,self.sentence_length_threshold],dtype=np.int)
         masks=np.zeros([batch_size,self.document_length_threshold],dtype=np.int)
         labels=np.zeros([batch_size,self.document_length_threshold],dtype=np.int)
@@ -263,7 +265,7 @@ class data_manager(object):
             labels[batch_idx,:number_of_sentences]=labels_this_document
 
         self.file_set_pt[set_label]+=batch_size
-        return input_matrix,masks,labels
+        return input_matrix,masks,labels,new_epoch
 
     '''
     >>> find a word in the dictionary, if not exist, return -1

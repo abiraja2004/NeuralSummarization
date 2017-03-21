@@ -9,7 +9,6 @@ sys.path.insert(0,'model')
 import network
 import data_manager
 import embedding_manager
-import loader
 import xml_parser
 
 if len(sys.argv)!=2:
@@ -66,7 +65,7 @@ my_network.train_validate_test_init()       # initialization of training
 best_validation_loss=1e8                    # best validation loss
 best_pt=-1                                  # best point in validation
 for batch_idx in xrange(batch_num):
-    input_matrix,masks,labels=my_data_manager.batch_gen(set_label='train',batch_size=my_network.batch_size,label_policy='min')
+    input_matrix,masks,labels,_=my_data_manager.batch_gen(set_label='train',batch_size=my_network.batch_size,label_policy='min')
     ratio=min(1.0, batch_idx/10000)
     _, loss=my_network.train(input_matrix,masks,labels,ratio)
     print 'Batch_idx: %d/%d, loss=%.4f\r'%(batch_idx+1,batch_num,loss),
@@ -79,7 +78,7 @@ for batch_idx in xrange(batch_num):
         my_network.dump_params(file2dump=model_saved_folder+os.sep+'%s_%d.ckpt'%(my_network.name,batch_idx+1))
         validation_loss=[]
         for validation_batch_idx in xrange(validation_batches):
-            input_matrix,masks,labels=my_data_manager.batch_gen(set_label='validate',batch_size=my_network.batch_size,label_policy='min')
+            input_matrix,masks,labels,_=my_data_manager.batch_gen(set_label='validate',batch_size=my_network.batch_size,label_policy='min')
             _, loss=my_network.validate(input_matrix,masks,labels,1.0)
             validation_loss.append(loss)
             print 'Validation Batch_idx %d/%d, loss=%.4f, average=%.4f'%(validation_batch_idx,validation_batches,loss,np.mean(validation_loss))
