@@ -1,4 +1,10 @@
 import os
+import sys
+# Python 2/3 compatibility
+if sys.version_info.major==3:
+    xrange=range
+sys.path.insert(0,'util')
+from py2py3 import *
 import traceback
 
 '''
@@ -11,11 +17,11 @@ def parse_document(file_name):
         contents=''.join(contents)
         parts=contents.split('\n\n')
         if len(parts)<4:
-            print 'invalid file format in file: %s'%file_name
+            print('invalid file format in file: %s'%file_name)
             return
         elif len(parts)>4:
-            print 'weired file format in file: %s'%file_name
-            print 'this file has %d parts'%len(parts)
+            print('weired file format in file: %s'%file_name)
+            print('this file has %d parts'%len(parts))
         url,sentence_label,highlights,entity_map=parts[:4]
 
         url=map(lambda x: x[:-1] if x[-1]=='\n' else x, url.split('\n'))
@@ -50,7 +56,7 @@ def get_raw_text(input_file, output_file):
     struct_info=parse_document(input_file)
     if output_file==None:
         for idx,sentence in enumerate(struct_info['sentences']):
-            print '%d\t%s'%(idx,sentence)
+            print('%d\t%s'%(idx,sentence))
     else:
         if not os.path.exists(os.path.dirname(output_file)):
             os.makedirs(os.path.dirname(output_file))
@@ -78,6 +84,6 @@ def get_raw_text_folder(input_folder, output_folder, recursive_flag=False):
                     file_pairs.append([input_file,output_file])
 
     for idx,(input_file,output_file) in enumerate(file_pairs):
-        print 'Processing %d/%d - %.1f%%\r'%(idx+1,len(file_pairs),float(idx+1)/float(len(file_pairs))*100),
+        sys.stdout.write('Processing %d/%d - %.1f%%\r'%(idx+1,len(file_pairs),float(idx+1)/float(len(file_pairs))*100))
         get_raw_text(input_file, output_file)
 

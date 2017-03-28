@@ -1,5 +1,10 @@
 import os
 import sys
+# Python 2/3 compatibility
+if sys.version_info.major==3:
+    xrange=range
+sys.path.insert(0,'./util')
+from py2py3 import *
 import tensorflow as tf
 import numpy as np
 
@@ -12,7 +17,7 @@ import data_manager
 import embedding_manager
 
 if len(sys.argv)!=2:
-    print 'python sentence_extract_test.py <config>'
+    print('python sentence_extract_test.py <config>')
     exit(0)
 
 hyper_params=xml_parser.parse(sys.argv[1],flat=False)
@@ -74,6 +79,6 @@ while True:
     negative_num+=np.sum(negative_bit)
     test_case_num+=np.sum(masks)
     test_right_num+=np.sum(hits)
-    print 'test_accuracy=%d/%d=%.1f%%, positive=%d(%.1f%%), negative=%d(%.1f%%)\r'%(test_right_num,test_case_num,float(test_right_num)/float(test_case_num)*100,
-        positive_num,float(positive_num)/float(positive_num+negative_num)*100,negative_num,float(negative_num)/float(positive_num+negative_num)*100),
-print ''
+    sys.stdout.write('test_accuracy=%d/%d=%.1f%%, positive=%d(%.1f%%), negative=%d(%.1f%%)\r'%(test_right_num,test_case_num,float(test_right_num)/float(test_case_num)*100,
+        positive_num,float(positive_num)/float(positive_num+negative_num)*100,negative_num,float(negative_num)/float(positive_num+negative_num)*100))
+print('')

@@ -1,3 +1,9 @@
+import sys
+# Python 2/3 compatibility
+if sys.version_info.major==3:
+    xrange=range
+sys.insert(0,'./util')
+from py2py3 import *
 import numpy as np
 import tensorflow as tf
 
@@ -22,11 +28,11 @@ class fastText(object):
         self.vocab_size=hyper_params['vocab_size']
         self.embedding_dim=hyper_params['embedding_dim']
         self.update_policy=hyper_params['update_policy']
-        self.embedding_trainable=hyper_params['embedding_trainable'] if hyper_params.has_key('embedding_trainable') else True
+        self.embedding_trainable=hyper_params['embedding_trainable'] if 'embedding_trainable' in hyper_params else True
 
         self.sess=None
         with tf.variable_scope('fastText'):
-            if not hyper_params.has_key('embedding_matrix'):
+            if not 'embedding_matrix' in hyper_params:
                 self.embedding_matrix=tf.get_variable('embedding_matrix', shape=[self.vocab_size,self.embedding_dim],
                     initializer=tf.truncated_normal_initializer(stddev=0.5), dtype=tf.float64)
             else:
@@ -60,23 +66,23 @@ class fastText(object):
         # Construct Optimizer
         if self.update_policy['name'].lower() in ['sgd', 'stochastic gradient descent']:
             learning_rate=self.update_policy['learning_rate']
-            momentum=0.0 if not self.update_policy.has_key('momentum') else self.update_policy['momentum']
+            momentum=0.0 if not 'momentum' in self.update_policy else self.update_policy['momentum']
             self.optimizer=tf.train.MomentumOptimizer(learning_rate, momentum)
         elif self.update_policy['name'].lower() in ['adagrad',]:
             learning_rate=self.update_policy['learning_rate']
-            initial_accumulator_value=0.1 if not self.update_policy.has_key('initial_accumulator_value') \
+            initial_accumulator_value=0.1 if not 'initial_accumulator_value' in self.update_policy \
                 else self.update_policy['initial_accumulator_value']
             self.optimizer=tf.train.AdagradOptimizer(learning_rate, initial_accumulator_value)
         elif self.update_policy['name'].lower() in ['adadelta']:
             learning_rate=self.update_policy['learning_rate']
-            rho=0.95 if not self.update_policy.has_key('rho') else self.update_policy['rho']
-            epsilon=1e-8 if not self.update_policy.has_key('epsilon') else self.update_policy['epsilon']
+            rho=0.95 if not 'rho' in self.update_policy else self.update_policy['rho']
+            epsilon=1e-8 if not 'epsilon' in self.update_policy else self.update_policy['epsilon']
             self.optimizer=tf.train.AdadeltaOptimizer(learning_rate, rho, epsilon)
         elif self.update_policy['name'].lower() in ['rms', 'rmsprop']:
             learning_rate=self.update_policy['learning_rate']
-            decay=0.9 if not self.update_policy.has_key('decay') else self.update_policy['decay']
-            momentum=0.0 if not self.update_policy.has_key('momentum') else self.update_policy['momentum']
-            epsilon=1e-10 if not self.update_policy.has_key('epsilon') else self.update_policy['epsilon']
+            decay=0.9 if not 'decay' in self.update_policy else self.update_policy['decay']
+            momentum=0.0 if not 'momentum' in self.update_policy else self.update_policy['momentum']
+            epsilon=1e-10 if not 'epsilon' in self.update_policy else self.update_policy['epsilon']
             self.optimizer=tf.train.RMSPropOptimizer(learning_rate, decay, momentum, epsilon)
         else:
             raise ValueError('Unrecognized Optimizer Category: %s'%self.update_policy['name'])
@@ -121,7 +127,7 @@ class fastText(object):
         '''
         saver=tf.train.Saver()
         saved_path=saver.save(self.sess, file2dump)
-        print 'parameters are saved in file %s'%saved_path
+        print('parameters are saved in file %s'%saved_path)
 
     def load_params(self,file2load):
         '''
@@ -130,7 +136,7 @@ class fastText(object):
         '''
         saver=tf.train.Saver()
         saver.restore(self.sess, file2load)
-        print 'parameters are imported from file %s'%file2load
+        print('parameters are imported from file %s'%file2load)
 
     def train_validate_test_end(self):
         '''

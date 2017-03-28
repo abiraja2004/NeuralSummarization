@@ -1,3 +1,9 @@
+import sys
+# Python 2/3 compatibility
+if sys.version_info.major==3:
+    xrange=range
+sys.path.insert(0,'./util')
+from py2py3 import *
 import numpy as np
 import tensorflow as tf
 
@@ -30,18 +36,18 @@ class sentenceExtractorModel(object):
         self.embedding_dim=hyper_params['embedding_dim']
         self.filter_sizes=hyper_params['filter_sizes']
         self.feature_map=hyper_params['feature_map']
-        self.separator_trainable=hyper_params['separator_trainable'] if hyper_params.has_key('separator_trainable') else True
+        self.separator_trainable=hyper_params['separator_trainable'] if 'separator_trainable' in hyper_params else True
         self.update_policy=hyper_params['update_policy']
-        self.grad_clip_norm=hyper_params['grad_clip_norm'] if hyper_params.has_key('grad_clip_norm') else 1.0
-        self.name='sentence extraction model' if not hyper_params.has_key('name') else hyper_params['name']
+        self.grad_clip_norm=hyper_params['grad_clip_norm'] if 'grad_clip_norm' in hyper_params else 1.0
+        self.name='sentence extraction model' if not 'name' in hyper_params else hyper_params['name']
 
         self.sess=None
 
-        if not hyper_params.has_key('embedding_matrix'):
-            print 'Word embeddings are initialized from scrach'
+        if not 'embedding_matrix' in hyper_params:
+            print('Word embeddings are initialized from scrach')
             self.embedding_matrix=tf.Variable(tf.random_uniform([self.vocab_size+2,self.embedding_dim],-1.0,1.0),dtype=tf.float32)
         else:
-            print 'Pre-trained word embeddings are imported'
+            print('Pre-trained word embeddings are imported')
             assert(hyper_params['embedding_matrix'].shape[0]==self.vocab_size+2)
             assert(hyper_params['embedding_matrix'].shape[1]==self.embedding_dim)
             self.embedding_matrix=tf.Variable(hyper_params['embedding_matrix'],dtype=tf.float32)
@@ -113,35 +119,35 @@ class sentenceExtractorModel(object):
 
         if self.update_policy['name'].lower() in ['sgd', 'stochastic gradient descent']:
             learning_rate=self.update_policy['learning_rate']
-            momentum=0.0 if not self.update_policy.has_key('momentum') else self.update_policy['momentum']
+            momentum=0.0 if not 'momentum' in self.update_policy else self.update_policy['momentum']
             self.optimizer=tf.train.MomentumOptimizer(learning_rate, momentum)
         elif self.update_policy['name'].lower() in ['adagrad',]:
             learning_rate=self.update_policy['learning_rate']
-            initial_accumulator_value=0.1 if not self.update_policy.has_key('initial_accumulator_value') \
+            initial_accumulator_value=0.1 if not 'initial_accumulator_value' in self.update_policy \
                 else self.update_policy['initial_accumulator_value']
             self.optimizer=tf.train.AdagradOptimizer(learning_rate, initial_accumulator_value)
         elif self.update_policy['name'].lower() in ['adadelta']:
             learning_rate=self.update_policy['learning_rate']
-            rho=0.95 if not self.update_policy.has_key('rho') else self.update_policy['rho']
-            epsilon=1e-8 if not self.update_policy.has_key('epsilon') else self.update_policy['epsilon']
+            rho=0.95 if not 'rho' in self.update_policy else self.update_policy['rho']
+            epsilon=1e-8 if not 'epsilon' in self.update_policy else self.update_policy['epsilon']
             self.optimizer=tf.train.AdadeltaOptimizer(learning_rate, rho, epsilon)
         elif self.update_policy['name'].lower() in ['rms', 'rmsprop']:
             learning_rate=self.update_policy['learning_rate']
-            decay=0.9 if not self.update_policy.has_key('decay') else self.update_policy['decay']
-            momentum=0.0 if not self.update_policy.has_key('momentum') else self.update_policy['momentum']
-            epsilon=1e-10 if not self.update_policy.has_key('epsilon') else self.update_policy['epsilon']
+            decay=0.9 if not 'decay' in self.update_policy else self.update_policy['decay']
+            momentum=0.0 if not 'momentum' in self.update_policy else self.update_policy['momentum']
+            epsilon=1e-10 if not 'epsilon' in self.update_policy else self.update_policy['epsilon']
             self.optimizer=tf.train.RMSPropOptimizer(learning_rate, decay, momentum, epsilon)
         elif self.update_policy['name'].lower() in ['adam']:
             learning_rate=self.update_policy['learning_rate']
-            beta1=0.9 if not self.update_policy.has_key('beta1') else self.update_policy['beta1']
-            beta2=0.999 if not self.update_policy.has_key('beta2') else self.update_policy['beta2']
-            epsilon=1e-8 if not self.update_policy.has_key('epsilon') else self.update_policy['epsilon']
+            beta1=0.9 if not 'beta1' in self.update_policy else self.update_policy['beta1']
+            beta2=0.999 if not 'beta2' in self.update_policy else self.update_policy['beta2']
+            epsilon=1e-8 if not 'epsilon' in self.update_policy else self.update_policy['epsilon']
             self.optimizer=tf.train.AdamOptimizer(learning_rate, beta1, beta2, epsilon)
         else:
             raise ValueError('Unrecognized Optimizer Category: %s'%self.update_policy['name'])
 
         # Apply gradient clip
-        print 'gradient clip is applied, max = %.2f'%self.grad_clip_norm
+        print('gradient clip is applied, max = %.2f'%self.grad_clip_norm)
         gradients=self.optimizer.compute_gradients(self.loss)
         clipped_gradients=[(tf.clip_by_value(grad,-self.grad_clip_norm,self.grad_clip_norm),var) for grad,var in gradients]
         self.update=self.optimizer.apply_gradients(clipped_gradients)
@@ -245,7 +251,7 @@ class sentenceExtractorModel(object):
         '''
         saver=tf.train.Saver()
         saved_path=saver.save(self.sess, file2dump)
-        print 'parameters are saved in file %s'%saved_path
+        print('parameters are saved in file %s'%saved_path)
 
     def load_params(self,file2load):
         '''
@@ -254,7 +260,7 @@ class sentenceExtractorModel(object):
         '''
         saver=tf.train.Saver()
         saver.restore(self.sess, file2load)
-        print 'parameters are imported from file %s'%file2load
+        print('parameters are imported from file %s'%file2load)
 
     def train_validate_test_end(self):
         '''

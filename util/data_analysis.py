@@ -1,5 +1,10 @@
 import os
 import sys
+# Python 2/3 compatibility
+if sys.version_info.major==3:
+    xrange=range
+sys.path.insert(0,'util')
+from py2py3 import *
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -14,7 +19,7 @@ def plot_word_frequency_distribution(dict_file, embedding_file):
         lines=fopen.readlines()
         lines=map(lambda x:x[:-1] if x[-1]=='\n' else x, lines)
         for idx,line in enumerate(lines[1:]):
-            print '%d/%d words loaded - %.1f%%\r'%(idx,len(lines)-1,float(idx)/float(len(lines)-1)*100),
+            sys.stdout.write('%d/%d words loaded - %.1f%%\r'%(idx,len(lines)-1,float(idx)/float(len(lines)-1)*100))
             parts=line.split(' ')
             word,frequency=parts[1],int(parts[2])
             if len(notes)==0:
@@ -57,7 +62,7 @@ def get_available_word_list(file,format):
         lines=open(file,'r').readlines()
         lines=map(lambda x: x[:-1] if x[-1]!='\n' else x,lines)
         for idx,line in enumerate(lines):
-            print 'Loading embeddings %d/%d - %.1f%%\r'%(idx+1,len(lines),float(idx+1)/float(len(lines))*100),
+            sys.stdout.write('Loading embeddings %d/%d - %.1f%%\r'%(idx+1,len(lines),float(idx+1)/float(len(lines))*100))
             parts=line.split(' ')
             word=parts[0]
             word_list.append(word)
@@ -67,7 +72,7 @@ def get_available_word_list(file,format):
             vocabulary_size,dimension=map(int,header.split())
             binary_length=np.dtype('float32').itemsize*dimension
             for word_idx in xrange(vocabulary_size):
-                print 'Loading embeddings %d/%d - %.1f%%\r'%(word_idx+1,vocabulary_size,float(word_idx+1)/float(vocabulary_size)*100),
+                sys.stdout.write('Loading embeddings %d/%d - %.1f%%\r'%(word_idx+1,vocabulary_size,float(word_idx+1)/float(vocabulary_size)*100))
                 word=[]
                 while True:
                     ch=fopen.read(1)
@@ -77,7 +82,7 @@ def get_available_word_list(file,format):
                     else:
                         word.append(ch)
                 word_list.append(word)
-    print 'vocabulary loaded from %s'%file
+    print('vocabulary loaded from %s'%file)
     return word_list
 
 '''
@@ -94,10 +99,10 @@ def plot_document_length_distribution(file_or_folder_list):
         elif os.path.isfile(file_or_folder):
             if file_or_folder.split('.')[-1] in ['info',]:
                 file_list.append(file_or_folder)
-    print 'detected %d files in total'%len(file_list)
+    print('detected %d files in total'%len(file_list))
 
     for idx,file in enumerate(file_list):
-        print '%d/%d file loaded - %.1f%%\r'%(idx,len(file_list),float(idx)/float(len(file_list))*100),
+        sys.stdout.write('%d/%d file loaded - %.1f%%\r'%(idx,len(file_list),float(idx)/float(len(file_list))*100))
         with open(file,'r') as fopen:
             document_length=int(fopen.readline())
             documents_length_distribution.append(document_length)
@@ -120,16 +125,16 @@ def plot_sentence_length_distribution(file_or_folder_list):
         elif os.path.isfile(file_or_folder):
             if file_or_folder.split('.')[-1] in ['info',]:
                 file_list.append(file_or_folder)
-    print 'detected %d files in total'%len(file_list)
+    print('detected %d files in total'%len(file_list))
 
     for idx,file in enumerate(file_list):
-        print '%d/%d file loaded - %.1f%%\r'%(idx,len(file_list),float(idx)/float(len(file_list))*100),
+        sys.stdout.write('%d/%d file loaded - %.1f%%\r'%(idx,len(file_list),float(idx)/float(len(file_list))*100))
         with open(file,'r') as fopen:
             document_length=int(fopen.readline())
             for line_idx in xrange(document_length):
                 parts=fopen.readline().split(',')
                 sentence_length_distribution.append(len(parts))
-    print 'detected %d sentences in total'%len(sentence_length_distribution)
+    print('detected %d sentences in total'%len(sentence_length_distribution))
 
     plt.yscale('log',nonposx='clip')
     bins=np.arange(0,np.max(sentence_length_distribution)+10,10)
@@ -140,12 +145,12 @@ def plot_sentence_length_distribution(file_or_folder_list):
 
 if __name__=='__main__':
 #     if len(sys.argv)!=3:
-#         print 'python data_analysis.py <dict_file> <embedding_file>'
+#         print('python data_analysis.py <dict_file> <embedding_file>')
 #         exit(0)
 #     plot_word_frequency_distribution(dict_file=sys.argv[1],embedding_file=sys.argv[2])
 
     if len(sys.argv)<2:
-        print 'python data_analysis.py <document_folder_list> ...'
+        print('python data_analysis.py <document_folder_list> ...')
         exit(0)
     # plot_document_length_distribution(sys.argv[1:])
     plot_sentence_length_distribution(sys.argv[1:])

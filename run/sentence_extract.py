@@ -1,5 +1,10 @@
 import os
 import sys
+# Python 2/3 compatibility
+if sys.version_info.major==3:
+    xrange=range
+sys.path.insert(0,'./util')
+from py2py3 import *
 import shutil
 import numpy as np
 
@@ -12,7 +17,7 @@ import embedding_manager
 import xml_parser
 
 if len(sys.argv)!=2:
-    print 'Usage: python sentence_extract.py <config>'
+    print('Usage: python sentence_extract.py <config>')
     exit(0)
 
 hyper_params=xml_parser.parse(file=sys.argv[1],flat=False)
@@ -55,7 +60,7 @@ sentence_extract_model_params['sequence_length']=my_data_manager.sentence_length
 sentence_extract_model_params['sequence_num']=my_data_manager.document_length_threshold
 sentence_extract_model_params['vocab_size']=my_data_manager.word_list_length
 sentence_extract_model_params['embedding_dim']=my_embedding_manager.embedding_dim
-if network_params.has_key('pretrain_embedding') and network_params['pretrain_embedding']==True:
+if 'pretrain_embedding' in network_params and network_params['pretrain_embedding']==True:
     sentence_extract_model_params['embedding_matrix']=embedding_matrix
 
 my_network=network.sentenceExtractorModel(sentence_extract_model_params)
@@ -70,11 +75,11 @@ for batch_idx in xrange(batch_num):
     input_matrix,masks,labels,_=my_data_manager.batch_gen(set_label='train',batch_size=my_network.batch_size,label_policy='min')
     ratio=min(1.0, batch_idx/10000)
     _, loss=my_network.train(input_matrix,masks,labels,ratio)
-    print 'Batch_idx: %d/%d, loss=%.4f\r'%(batch_idx+1,batch_num,loss),
+    sys.stdout.write('Batch_idx: %d/%d, loss=%.4f\r'%(batch_idx+1,batch_num,loss))
     training_loss.append(loss)
 
     if (batch_idx+1)%check_err_frequency==0:        # plot the loss average
-        print 'Average loss in [%d,%d)=%.4f'%(batch_idx+1-check_err_frequency,batch_idx+1,np.mean(training_loss[-check_err_frequency:]))
+        print('Average loss in [%d,%d)=%.4f'%(batch_idx+1-check_err_frequency,batch_idx+1,np.mean(training_loss[-check_err_frequency:])))
 
     if (batch_idx+1)%validation_frequency==0:       # start validation
         my_network.dump_params(file2dump=model_saved_folder+os.sep+'%s_%d.ckpt'%(my_network.name,batch_idx+1))
@@ -84,11 +89,11 @@ for batch_idx in xrange(batch_num):
             input_matrix,masks,labels,_=my_data_manager.batch_gen(set_label='validate',batch_size=my_network.batch_size,label_policy='min')
             _, loss=my_network.validate(input_matrix,masks,labels,1.0)
             validation_loss.append(loss)
-            print 'Validation Batch_idx %d/%d, loss=%.4f, average=%.4f\r'%(validation_batch_idx,validation_batches,loss,np.mean(validation_loss)),
+            sys.stdout.write('Validation Batch_idx %d/%d, loss=%.4f, average=%.4f\r'%(validation_batch_idx,validation_batches,loss,np.mean(validation_loss)))
             if np.mean(validation_loss)<best_validation_loss:
                 best_validation_loss=np.mean(validation_loss)
                 best_pt=batch_idx+1
-        print ''
+        print('')
 
 my_network.train_validate_test_end()
-print 'Best validation model: %s'%(model_saved_folder+os.sep+'%s_%d.ckpt'%(my_network.name,best_pt))
+print('Best validation model: %s'%(model_saved_folder+os.sep+'%s_%d.ckpt'%(my_network.name,best_pt)))

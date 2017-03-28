@@ -1,8 +1,13 @@
 import os
 import sys
+# Python 2/3 compatibility
+if sys.version_info.major==3:
+    xrange=range
+sys.path.insert(0,'util')
+from py2py3 import *
 
 if len(sys.argv)<4:
-    print 'python test-data_manager.py <saved_folder> <dict.txt> <*.info>'
+    print('python test-data_manager.py <saved_folder> <dict.txt> <*.info>')
     exit(0)
 
 saved_folder=sys.argv[1]
@@ -16,15 +21,15 @@ lookup_dict={}
 with open(dict_file, 'r') as fopen:
     first_line=fopen.readline()
     for idx,line in enumerate(fopen):
-        print '%d words loaded!\r'%idx,
+        sys.stdout.write('%d words loaded!\r'%idx)
         parts=line.split(' ')
         key=parts[0]
         word=' '.join(parts[1:-1])
         lookup_dict[key]=word
-print ''
+print('')
 
 for idx,info_file in enumerate(info_file_list):
-    print 'Loading file %s %d/%d\r'%(info_file,idx+1,len(info_file_list))
+    sys.stdout.write('Loading file %s %d/%d\r'%(info_file,idx+1,len(info_file_list)))
     file_name=info_file.split(os.sep)[-1]
     pure_name='.'.join(file_name.split('.')[:-1])
     output_text=''
@@ -34,10 +39,10 @@ for idx,info_file in enumerate(info_file_list):
             line=line if line[-1]!='\n' else line[:-1]
             parts=line.split(',')
             for part_idx,part in enumerate(parts):
-                if lookup_dict.has_key(part):
+                if part in lookup_dict:
                     parts[part_idx]=lookup_dict[part]
                 else:
-                    print 'Warning: detect a word not listed in the dictionary: %s'%part
+                    print('Warning: detect a word not listed in the dictionary: %s'%part)
             sentence=' '.join(parts)+'\n'
             output_text+=sentence
     with open(saved_folder+os.sep+pure_name+'.txt','w') as fopen:

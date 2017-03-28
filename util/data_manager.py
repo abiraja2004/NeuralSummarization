@@ -1,5 +1,10 @@
 import os
 import sys
+# Python 2/3 compatibility
+if sys.version_info.major==3:
+    xrange=range
+sys.path.insert(0,'util')
+from py2py3 import *
 import loader
 import random
 import numpy as np
@@ -22,10 +27,10 @@ class data_manager(object):
         assert(len(self.src_folders)==len(self.dest_folders))
         self.dict_file=hyper_params['dict_file']                        # dictionary file
         self.entity_name_file=hyper_params['entity_name_file']          # entity name list
-        self.word_frequency_threshold=hyper_params['word_frequency_threshold'] if hyper_params.has_key('word_frequency_threshold') else 0       # least word frequency
-        self.word_list_length=hyper_params['word_list_length'] if hyper_params.has_key('word_list_length') else 10000                           # upper bound of vocabulary size
-        self.document_length_threshold=hyper_params['document_length_threshold'] if hyper_params.has_key('document_length_threshold') else 100  # longest document length
-        self.sentence_length_threshold=hyper_params['sentence_length_threshold'] if hyper_params.has_key('sentence_length_threshold') else 100  # longest sentence length
+        self.word_frequency_threshold=hyper_params['word_frequency_threshold'] if 'word_frequency_threshold' in hyper_params else 0       # least word frequency
+        self.word_list_length=hyper_params['word_list_length'] if 'word_list_length' in hyper_params else 10000                           # upper bound of vocabulary size
+        self.document_length_threshold=hyper_params['document_length_threshold'] if 'document_length_threshold' in hyper_params else 100  # longest document length
+        self.sentence_length_threshold=hyper_params['sentence_length_threshold'] if 'sentence_length_threshold' in hyper_params else 100  # longest sentence length
         self.valid_word_num=0                                           # number of words whose frequency is higher than threshold
         self.valid_word_list=[]                                         # valid word list whose length is min(self.word_list_length, self.valid_word_num)
 
@@ -53,17 +58,17 @@ class data_manager(object):
                     output_file='.'.join(src_folder_or_file.split('.')[:-1])+'.info'
                     self.dest_file_list.append(output_file)
             else:
-                print 'invalid file or directory %s'%src_folder_or_file
+                print('invalid file or directory %s'%src_folder_or_file)
 
-        print 'There are %d files detected'%len(self.src_file_list)
+        print('There are %d files detected'%len(self.src_file_list))
 
     def analyze_documents(self):
         '''
         >>> analyze the document list and build the word_frequency list
         '''
         for idx,file in enumerate(self.src_file_list):
-            print 'Analyze the document %d/%d - %.1f%%\r'%(
-                idx+1,len(self.src_file_list),float(idx+1)/float(len(self.src_file_list))*100),
+            sys.stdout.write('Analyze the document %d/%d - %.1f%%\r'%(
+                idx+1,len(self.src_file_list),float(idx+1)/float(len(self.src_file_list))*100))
             document=loader.parse_document(file)
             if len(document['sentences'])>self.max_length_document:
                 self.max_length_document=len(document['sentences'])
@@ -81,7 +86,7 @@ class data_manager(object):
                 self.entity_name_list.append(document['entity2name'][entity])
 
         self.entity_name_list=list(set(self.entity_name_list))
-        print 'There are %d entity name in total'%(len(self.entity_name_list))
+        print('There are %d entity name in total'%(len(self.entity_name_list)))
 
         self.word_frequency=sorted(self.word_frequency,lambda x,y: -1 if x[1]>y[1] else 1)
         while self.valid_word_num<len(self.word_frequency) and self.word_frequency[self.valid_word_num][1]>=self.word_frequency_threshold:
@@ -89,8 +94,8 @@ class data_manager(object):
                 self.valid_word_list.append(self.word_frequency[self.valid_word_num][1])
             self.valid_word_num+=1
 
-        print 'The vocabulary size in the whole corpura is %d,'%len(self.word_frequency)
-        print 'There are %d words whose frequency is above %d'%(self.valid_word_num,self.word_frequency_threshold)
+        print('The vocabulary size in the whole corpura is %d,'%len(self.word_frequency))
+        print('There are %d words whose frequency is above %d'%(self.valid_word_num,self.word_frequency_threshold))
 
     '''
     >>> load states from dictionary file 
@@ -99,7 +104,7 @@ class data_manager(object):
     '''
     def load_dict(self):
         if not os.path.exists(self.dict_file):
-            print 'Failed to load dictionary from %s: file not exists'%self.dict_file
+            print('Failed to load dictionary from %s: file not exists'%self.dict_file)
             return False
         self.word_frequency=[]
         with open(self.dict_file,'r') as fopen:
@@ -116,8 +121,8 @@ class data_manager(object):
             if self.valid_word_num<self.word_list_length:
                 self.valid_word_list.append(self.word_frequency[self.valid_word_num][1])
             self.valid_word_num+=1
-        print 'Load %d words from %s'%(len(self.word_frequency),self.dict_file)
-        print 'There are %d words whose frequency is above %d'%(self.valid_word_num,self.word_frequency_threshold)
+        print('Load %d words from %s'%(len(self.word_frequency),self.dict_file))
+        print('There are %d words whose frequency is above %d'%(self.valid_word_num,self.word_frequency_threshold))
 
         self.entity_name_list=open(self.entity_name_file,'r').readlines()
         self.entity_name_list=map(lambda x: x[:-1] if x[-1]=='\n' else x, self.entity_name_list)
@@ -137,9 +142,9 @@ class data_manager(object):
     '''
     def build_files(self,force=False):
         # generate dictionary file
-        print 'Generate dictionary file'
+        print('Generate dictionary file')
         if os.path.exists(self.dict_file) and force==False:
-            print 'Dictionary file %s already exists. To overwrite it, please set force flag to True'%self.dict_file
+            print('Dictionary file %s already exists. To overwrite it, please set force flag to True'%self.dict_file)
         else:
             if not os.path.exists(os.path.dirname(self.dict_file)):
                 os.makedirs(os.path.dirname(self.dict_file))
@@ -147,27 +152,27 @@ class data_manager(object):
                 fopen.write('%d %d\n'%(self.max_length_document,self.max_length_sentence))
                 for idx,(word,frequency) in enumerate(self.word_frequency):
                     if (idx+1)%1000==0:
-                        print '%d/%d ...\r'%(idx+1,len(self.word_frequency)),
+                        sys.stdout.write('%d/%d ...\r'%(idx+1,len(self.word_frequency)))
                     fopen.write('%d %s %d\n'%(idx,word,frequency))
-        print 'Completed!!         '
+        print('\nCompleted!!')
 
-        print 'Generate entity dictionary file'
+        print('Generate entity dictionary file')
         if os.path.exists(self.entity_name_file) and force==False:
-            print 'Entity name file %s already exists. To overwrite it, please set force flag to True'%self.entity_name_file
+            print('Entity name file %s already exists. To overwrite it, please set force flag to True'%self.entity_name_file)
         else:
             if not os.path.exists(os.path.dirname(self.entity_name_file)):
                 os.makedirs(os.path.dirname(self.entity_name_file))
             with open(self.entity_name_file,'w') as fopen:
                 for entity in self.entity_name_list:
                     fopen.write('%s\n'%entity)
-        print 'Completed!!         '
+        print('\nCompleted!!')
 
         # generate input matrix and labels
-        print 'Generate input matrix and labels'
+        print('Generate input matrix and labels')
         for idx,(src_file,dest_file) in enumerate(zip(self.src_file_list, self.dest_file_list)):
-            print '%d/%d ...\r'%(idx+1,len(self.src_file_list)),
+            sys.stdout.write('%d/%d ...\r'%(idx+1,len(self.src_file_list)))
             if os.path.exists(dest_file) and force==False:
-                print 'Information file %s already exists. To overwrite it, please set force flag to True'%dest_file
+                print('Information file %s already exists. To overwrite it, please set force flag to True'%dest_file)
             else:
                 if not os.path.exists(os.path.dirname(dest_file)):
                     os.makedirs(os.path.dirname(dest_file))
@@ -180,7 +185,7 @@ class data_manager(object):
                         word_idx_list=map(lambda x: str(self.find_word(x)), words)
                         fopen.write(','.join(word_idx_list)+'\n')
                     fopen.write(','.join(map(str,document['labels'])))
-        print 'Completed!!         '
+        print('\nCompleted!!')
 
     '''
     >>> initialization of data batch for a set of files
@@ -189,7 +194,7 @@ class data_manager(object):
     >>> permutation: bool, whether or not to permute the documents
     '''
     def init_batch_gen(self,set_label,file_list,permutation):
-        if self.file_set.has_key(set_label) and file_list!=None:
+        if set_label in self.file_set and file_list!=None:
             raise Exception('Can not initialize the dataset %s twice'%set_label)
 
         if file_list!=None:
@@ -221,7 +226,7 @@ class data_manager(object):
     def batch_gen(self,set_label,batch_size,label_policy):
         if not label_policy in ['min','max','clear']:
             raise ValueError('Unrecognized labeling policy %s'%label_policy)
-        if not self.file_set.has_key(set_label):
+        if not set_label in self.file_set:
             raise ValueError('Set %s has not been initialized yet'%set_label)
         if batch_size>len(self.file_set[set_label]):
             raise ValueError('Too large batch size %d, there are %d documents in total'%(batch_size,len(self.file_set[set_label])))

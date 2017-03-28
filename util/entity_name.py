@@ -1,5 +1,10 @@
 import os
 import sys
+# Python 2/3 compatibility
+if sys.version_info.major==3:
+    xrange=range
+sys.path.insert(0,'util')
+from py2py3 import *
 import traceback
 
 '''
@@ -18,14 +23,14 @@ def extract_entity_dict(folder_or_file_list, saved_file):
             if folder_or_file.split('.')[-1] in ['summary']:
                 file_list.append(folder_or_file)
         else:
-            print 'Invalid file or folder: %s'%folder_or_file
+            print('Invalid file or folder: %s'%folder_or_file)
 
-    print 'There are %d documents available'%(len(file_list))
+    print('There are %d documents available'%(len(file_list)))
 
     entity2name={}
     for idx,file_name in enumerate(file_list):
         try:
-            print 'loading documents %d/%d - %.1f%%'%(idx,len(file_list),float(idx)/float(len(file_list))*100)
+            sys.stdout.write('loading documents %d/%d - %.1f%%\r'%(idx,len(file_list),float(idx)/float(len(file_list))*100))
             contents=open(file_name,'r').readlines()
             contents=''.join(contents)
             parts=contents.split('\n\n')
@@ -37,12 +42,12 @@ def extract_entity_dict(folder_or_file_list, saved_file):
 
             entity_map=map(split_entity_name, entity_map.split('\n'))
             for entity,name in entity_map:
-                if entity2name.has_key(entity) and entity2name[entity]!=name:
-                    print 'warning: key %s [%s -> %s]'%(entity, entity2name[entity], name)
+                if entity in entity2name and entity2name[entity]!=name:
+                    print('warning: key %s [%s -> %s]'%(entity, entity2name[entity], name))
                 entity2name[entity]=name
         except:
             traceback.print_exc()
-            print 'Error occurs when parsing file: %s'%file_name
+            print('Error occurs when parsing file: %s'%file_name)
 
     if saved_file!=None:
         with open(saved_file,'w') as fopen:
@@ -62,7 +67,7 @@ def replace_entity_name(entity2name, original_dict, new_dict):
     with open(new_dict,'w') as fopen:
         fopen.write(lines[0]+'\n')
         for idx,line in enumerate(lines[1:]):
-            print 'scanned %d/%d words - %.1f%%'%(idx,len(lines),float(idx)/float(len(lines))*100)
+            sys.stdout.write('scanned %d/%d words - %.1f%%\r'%(idx,len(lines),float(idx)/float(len(lines))*100))
             parts=line.split(' ')
             word=' '.join(parts[1:-1])
             if word in entity2name:
@@ -74,7 +79,7 @@ def replace_entity_name(entity2name, original_dict, new_dict):
 if __name__=='__main__':
 
     if len(sys.argv)<4:
-        print 'entity_name.py <original_dict> <new_dict> <entity_saved_dict> <file_or_folder>...'
+        print('entity_name.py <original_dict> <new_dict> <entity_saved_dict> <file_or_folder>...')
         exit(0)
 
     entity2name=extract_entity_dict(folder_or_file_list=sys.argv[4:], saved_file=sys.argv[3])

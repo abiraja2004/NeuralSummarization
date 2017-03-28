@@ -1,5 +1,10 @@
 import os
 import sys
+# Python 2/3 compatibility
+if sys.version_info.major==3:
+    xrange=range
+sys.path.insert(0,'util')
+from py2py3 import *
 import random
 import numpy as np
 
@@ -12,9 +17,9 @@ class text_manager(object):
     >>> Constructor
     '''
     def __init__(self,hyper_params):
-        self.fix_dict=hyper_params['fix_dict'] if hyper_params.has_key('fix_dict') else False
+        self.fix_dict=hyper_params['fix_dict'] if 'fix_dict' in hyper_params else False
         self.word_list=hyper_params['word_list'] if self.fix_dict==True else []
-        self.index_style=hyper_params['index_style'] if hyper_params.has_key('index_style') else 'new'
+        self.index_style=hyper_params['index_style'] if 'index_style' in hyper_params else 'new'
 
     '''
     >>> generate the input of the network
@@ -37,7 +42,7 @@ class text_manager(object):
         sentences=map(lambda x:x.split(' ') if x[-1]!='\n' else x[:-1].split(' '), sentences)
 
         if len(sentences)>document_length:
-            print 'Warning: this document contains too much sentences, only first %s sentences are considered'
+            print('Warning: this document contains too much sentences, only first %s sentences are considered')
             sentences=sentences[:document_length]
 
         sentence_num=len(sentences)

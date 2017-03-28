@@ -1,6 +1,23 @@
-import xml.etree.ElementTree as et
 import os
 import sys
+import xml.etree.ElementTree as et
+# Python 2/3 compatibility
+if sys.version_info.major==3:
+    xrange=range
+_open=open
+_map=map
+def open(file,mode):
+    if mode=='r':
+        if sys.version_info.major==3:
+            return _open(file,mode,encoding='utf8')
+        if sys.version_info.major==2:
+            import codecs
+            return codecs.open(file,mode,'utf8')
+    return _open(file,mode)
+def map(func,items):
+    if sys.version_info.major==3:
+        return list(_map(func,items))
+    return _map(func,items)
 
 def cast(value,tag):
     try:
@@ -21,7 +38,7 @@ def cast(value,tag):
         if tag=='list_bool':
             return map(lambda x: True if x in ['true','True'] else False,
                     value.split(',')) if not value in ['',None] else []
-        print 'unrecognized type: %s'%tag
+        print('unrecognized type: %s'%tag)
         return value
     except:
         raise ValueError('can not cast "%s" into type "%s"'%(value,tag))
@@ -45,13 +62,13 @@ def flatten(dictTree):
         if type(dictTree[key])==dict:
             subdict=flatten(dictTree[key])
             for subkey in subdict:
-                if ret.has_key(subkey):
-                    print 'Conflict of the key value %s when flattening.'%subkey
+                if subkey in ret:
+                    print('Conflict of the key value %s when flattening.'%subkey)
                 else:
                     ret[subkey]=subdict[subkey]
         else:
-            if ret.has_key(key):
-                print 'Conflict of the key value %s when flattening.'%key
+            if key in ret:
+                print('Conflict of the key value %s when flattening.'%key)
             ret[key]=dictTree[key]
     return ret
 
@@ -73,15 +90,15 @@ def parse(file,flat):
 def print_dict(to_print,tab_num=0):
     for key in to_print:
         if type(to_print[key])==dict:
-            print '\t'*tab_num,key,' =>'
+            print('\t'*tab_num,key,' =>')
             print_dict(to_print[key],tab_num+1)
         else:
-            print '\t'*tab_num,key,' -> ',to_print[key]
+            print('\t'*tab_num,key,' -> ',to_print[key])
 
 if __name__=='__main__':
     
     if len(sys.argv)!=2:
-        print 'Usage: python xmlParser.py <folder>'
+        print('Usage: python xmlParser.py <folder>')
         exit(0)
     
     for subdir,dirs,files in os.walk(sys.argv[1]):

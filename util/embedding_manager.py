@@ -1,4 +1,10 @@
 import os
+import sys
+# Python 2/3 compatibility
+if sys.version_info.major==3:
+    xrange=range
+sys.path.insert(0,'util')
+from py2py3 import *
 import numpy as np
 import data_manager
 
@@ -35,16 +41,16 @@ class embedding_manager(object):
             lines=open(source,'r').readlines()
             lines=map(lambda x: x[:-1] if x[-1]!='\n' else x,lines)
             for idx,line in enumerate(lines):
-                print 'Loading embeddings %d/%d\r'%(idx+1,len(lines)),
+                sys.stdout.write('Loading embeddings %d/%d\r'%(idx+1,len(lines)))
                 parts=line.split(' ')
                 word=parts[0]
                 embeddings=np.array(map(float,parts[1:]))
                 try:
                     assert(len(embeddings)==self.embedding_dim)
                 except:
-                    print 'line %d: dimension does not match, %d required but %d detected'%(idx+1,self.embedding_dim,len(embeddings))
-                if self.embedding_dict.has_key(word):
-                    print 'warning: word %s occurs more than one time in file %s, only keep the latest one'%(word,source)
+                    print('line %d: dimension does not match, %d required but %d detected'%(idx+1,self.embedding_dim,len(embeddings)))
+                if word in self.embedding_dict:
+                    print('warning: word %s occurs more than one time in file %s, only keep the latest one'%(word,source))
                 self.embedding_dict[word]=embeddings
         elif format=='bin':
             with open(source,'r') as fopen:
@@ -53,7 +59,7 @@ class embedding_manager(object):
                 binary_length=np.dtype('float32').itemsize*dimension
                 assert(dimension==self.embedding_dim)
                 for word_idx in xrange(vocabulary_size):
-                    print 'Loading embeddings %d/%d\r'%(word_idx+1,vocabulary_size),
+                    sys.stdout.write('Loading embeddings %d/%d\r'%(word_idx+1,vocabulary_size))
                     word=[]
                     while True:
                         ch=fopen.read(1)
@@ -62,13 +68,13 @@ class embedding_manager(object):
                             break
                         else:
                             word.append(ch)
-                    if self.embedding_dict.has_key(word):
-                        print 'warning: word %s occurs more than one time in file %s, only keep the lastest one'%(word,source)
+                    if word in self.embedding_dict:
+                        print('warning: word %s occurs more than one time in file %s, only keep the lastest one'%(word,source))
                     self.embedding_dict[word]=np.fromstring(fopen.read(binary_length),dtype=np.float32)
         else:
             raise ValueError('Unrecognized word embedding source format: %s'%format)
         self.source=source
-        print 'Completed!!          '
+        print('\nCompleted!!')
 
     '''
     >>> generate embedding matrix for a dataset
@@ -77,16 +83,16 @@ class embedding_manager(object):
     def gen_embedding_matrix(self,manager):
         embedding_matrix=np.zeros([manager.word_list_length+2,self.embedding_dim],dtype=np.float32)
         missing_word_num=0
-        print 'Generating embedding matrix'
+        print('Generating embedding matrix')
         for idx,(word,frequency) in enumerate(manager.word_frequency[:min(manager.valid_word_num, manager.word_list_length)]):
-            print '%d/%d ... %d word Unrecognized\r'%(idx+1,min(manager.valid_word_num, manager.word_list_length),missing_word_num),
-            if self.embedding_dict.has_key(word):
+            sys.stdout.write('%d/%d ... %d word Unrecognized\r'%(idx+1,min(manager.valid_word_num, manager.word_list_length),missing_word_num))
+            if word in self.embedding_dict:
                 embedding_matrix[idx]=self.embedding_dict[word]
             else:
                 embedding_matrix[idx]=np.random.randn(self.embedding_dim)*0.5
                 missing_word_num+=1
         embedding_matrix[manager.word_list_length]=np.random.randn(self.embedding_dim)*0.5
-        print 'Completed! %d words, including %d unrecognized.'%(min(manager.valid_word_num, manager.word_list_length),missing_word_num)
+        print('Completed! %d words, including %d unrecognized.'%(min(manager.valid_word_num, manager.word_list_length),missing_word_num))
         return embedding_matrix
 
     '''
@@ -97,16 +103,16 @@ class embedding_manager(object):
         word_num=len(word_list)
         embedding_matrix=np.zeros([word_num+2,self.embedding_dim],dtype=np.float32)
         missing_word_num=0
-        print 'Embedding lookup ...'
+        print('Embedding lookup ...')
         for idx,word in enumerate(word_list):
-            print '%d/%d ... %d word Unrecognized\r'%(idx+1,word_num,missing_word_num),
-            if self.embedding_dict.has_key(word):
+            sys.stdout.write('%d/%d ... %d word Unrecognized\r'%(idx+1,word_num,missing_word_num))
+            if word in self.embedding_dict:
                 embedding_matrix[idx]=self.embedding_dict[word]
             else:
                 embedding_matrix[idx]=np.random.randn(self.embedding_dim)*0.5
                 missing_word_num+=1
         embedding_matrix[word_num]=np.random.randn(self.embedding_dim)*0.5
-        print 'Completed! %d words, including %d unrecognized.'%(word_num, missing_word_num)
+        print('Completed! %d words, including %d unrecognized.'%(word_num, missing_word_num))
         return embedding_matrix
 
     '''
@@ -118,7 +124,7 @@ class embedding_manager(object):
         if not method.lower() in ['pca','mds']:
             raise ValueError('Unrecognized projection method %s'%method)
 
-        print 'Project word embeddings from %d dimension to %d dimension via %s'%(self.embedding_dim,dim,method)
+        print('Project word embeddings from %d dimension to %d dimension via %s'%(self.embedding_dim,dim,method))
         word_list=self.embedding_dict.keys()
         embedding_matrix=np.zeros([len(word_list),self.embedding_dim],dtype=np.float32)
         for idx,word in enumerate(word_list):
