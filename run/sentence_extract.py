@@ -24,8 +24,8 @@ data_manager_params=data_process_params['data_manager_params']
 file_sets=data_process_params['file_sets']
 
 my_data_manager=data_manager.data_manager(data_manager_params)
-# my_data_manager.analyze_documents()
-# my_data_manager.build_files(force=force_flag)
+#my_data_manager.analyze_documents()
+#my_data_manager.build_files(force=force_flag)
 my_data_manager.load_dict()
 for key in file_sets:
     file_set=file_sets[key]
@@ -53,8 +53,10 @@ check_err_frequency=max(1,validation_frequency/10)
 
 sentence_extract_model_params['sequence_length']=my_data_manager.sentence_length_threshold
 sentence_extract_model_params['sequence_num']=my_data_manager.document_length_threshold
-sentence_extract_model_params['vocab_size']=my_data_manager.valid_word_num+1
+sentence_extract_model_params['vocab_size']=my_data_manager.word_list_length
 sentence_extract_model_params['embedding_dim']=my_embedding_manager.embedding_dim
+if network_params.has_key('pretrain_embedding') and network_params['pretrain_embedding']==True:
+    sentence_extract_model_params['embedding_matrix']=embedding_matrix
 
 my_network=network.sentenceExtractorModel(sentence_extract_model_params)
 if not os.path.exists(model_saved_folder):
@@ -77,11 +79,12 @@ for batch_idx in xrange(batch_num):
     if (batch_idx+1)%validation_frequency==0:       # start validation
         my_network.dump_params(file2dump=model_saved_folder+os.sep+'%s_%d.ckpt'%(my_network.name,batch_idx+1))
         validation_loss=[]
+        my_data_manager.init_batch_gen(set_label='validate',file_list=None,permutation=True)        # Permutation is done before each validation
         for validation_batch_idx in xrange(validation_batches):
             input_matrix,masks,labels,_=my_data_manager.batch_gen(set_label='validate',batch_size=my_network.batch_size,label_policy='min')
             _, loss=my_network.validate(input_matrix,masks,labels,1.0)
             validation_loss.append(loss)
-            print 'Validation Batch_idx %d/%d, loss=%.4f, average=%.4f'%(validation_batch_idx,validation_batches,loss,np.mean(validation_loss))
+            print 'Validation Batch_idx %d/%d, loss=%.4f, average=%.4f\r'%(validation_batch_idx,validation_batches,loss,np.mean(validation_loss)),
             if np.mean(validation_loss)<best_validation_loss:
                 best_validation_loss=np.mean(validation_loss)
                 best_pt=batch_idx+1
@@ -89,4 +92,3 @@ for batch_idx in xrange(batch_num):
 
 my_network.train_validate_test_end()
 print 'Best validation model: %s'%(model_saved_folder+os.sep+'%s_%d.ckpt'%(my_network.name,best_pt))
-#shutil.copyfile(model_saved_folder+os.sep+'%s_%d.ckpt'%(my_network.name,best_pt),model_saved_folder+os.sep+'%s_pickup.ckpt'%my_network.name)

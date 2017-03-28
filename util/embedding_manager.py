@@ -75,18 +75,38 @@ class embedding_manager(object):
     >>> manager: data_manager.data_manager, data manager which contains a word list
     '''
     def gen_embedding_matrix(self,manager):
-        embedding_matrix=np.zeros([manager.valid_word_num+1,self.embedding_dim],dtype=np.float32)
+        embedding_matrix=np.zeros([manager.word_list_length+2,self.embedding_dim],dtype=np.float32)
         missing_word_num=0
         print 'Generating embedding matrix'
-        for idx,(word,frequency) in enumerate(manager.word_frequency[:manager.valid_word_num]):
-            print '%d/%d ... %d word Unrecognized\r'%(idx+1,len(manager.word_frequency),missing_word_num),
+        for idx,(word,frequency) in enumerate(manager.word_frequency[:min(manager.valid_word_num, manager.word_list_length)]):
+            print '%d/%d ... %d word Unrecognized\r'%(idx+1,min(manager.valid_word_num, manager.word_list_length),missing_word_num),
             if self.embedding_dict.has_key(word):
                 embedding_matrix[idx]=self.embedding_dict[word]
             else:
                 embedding_matrix[idx]=np.random.randn(self.embedding_dim)*0.5
                 missing_word_num+=1
-        embedding_matrix[manager.valid_word_num]=np.random.randn(self.embedding_dim)*0.5
-        print 'Completed! %d words, including %d unrecognized.'%(len(manager.word_frequency),missing_word_num)
+        embedding_matrix[manager.word_list_length]=np.random.randn(self.embedding_dim)*0.5
+        print 'Completed! %d words, including %d unrecognized.'%(min(manager.valid_word_num, manager.word_list_length),missing_word_num)
+        return embedding_matrix
+
+    '''
+    >>> embedding lookup based on a word list
+    >>> word_list: list, list of word to extract
+    '''
+    def embedding_lookup(self,word_list):
+        word_num=len(word_list)
+        embedding_matrix=np.zeros([word_num+2,self.embedding_dim],dtype=np.float32)
+        missing_word_num=0
+        print 'Embedding lookup ...'
+        for idx,word in enumerate(word_list):
+            print '%d/%d ... %d word Unrecognized\r'%(idx+1,word_num,missing_word_num),
+            if self.embedding_dict.has_key(word):
+                embedding_matrix[idx]=self.embedding_dict[word]
+            else:
+                embedding_matrix[idx]=np.random.randn(self.embedding_dim)*0.5
+                missing_word_num+=1
+        embedding_matrix[word_num]=np.random.randn(self.embedding_dim)*0.5
+        print 'Completed! %d words, including %d unrecognized.'%(word_num, missing_word_num)
         return embedding_matrix
 
     '''

@@ -20,14 +20,17 @@ class data_manager(object):
         self.src_folders=hyper_params['src_folders']
         self.dest_folders=hyper_params['dest_folders']
         assert(len(self.src_folders)==len(self.dest_folders))
-        self.dict_file=hyper_params['dict_file']
-        self.entity_name_file=hyper_params['entity_name_file']
-        self.word_frequency_threshold=hyper_params['word_frequency_threshold'] if hyper_params.has_key('word_frequency_threshold') else 0
-        self.document_length_threshold=hyper_params['document_length_threshold'] if hyper_params.has_key('document_length_threshold') else 100
-        self.sentence_length_threshold=hyper_params['sentence_length_threshold'] if hyper_params.has_key('sentence_length_threshold') else 100
-        self.valid_word_num=0
+        self.dict_file=hyper_params['dict_file']                        # dictionary file
+        self.entity_name_file=hyper_params['entity_name_file']          # entity name list
+        self.word_frequency_threshold=hyper_params['word_frequency_threshold'] if hyper_params.has_key('word_frequency_threshold') else 0       # least word frequency
+        self.word_list_length=hyper_params['word_list_length'] if hyper_params.has_key('word_list_length') else 10000                           # upper bound of vocabulary size
+        self.document_length_threshold=hyper_params['document_length_threshold'] if hyper_params.has_key('document_length_threshold') else 100  # longest document length
+        self.sentence_length_threshold=hyper_params['sentence_length_threshold'] if hyper_params.has_key('sentence_length_threshold') else 100  # longest sentence length
+        self.valid_word_num=0                                           # number of words whose frequency is higher than threshold
+        self.valid_word_list=[]                                         # valid word list whose length is min(self.word_list_length, self.valid_word_num)
 
         self.word_frequency=[]                      # list of [[word1, frequency1],[word2, frequency2] ...]
+        self.entity_name_list=[]
         self.max_length_sentence=0
         self.max_length_document=0
         self.src_file_list=[]                       # source files with extension '.summary'
@@ -35,8 +38,6 @@ class data_manager(object):
 
         self.file_set={}                            # sets of files, like training and test set
         self.file_set_pt={}                         # points for each set of files
-
-        self.entity_name_list=[]
 
         # scanning the folder, build src/dest files dictionary, dest files are not created in this part
         for src_folder_or_file, dest_folder_or_file in zip(self.src_folders,self.dest_folders):
@@ -84,7 +85,10 @@ class data_manager(object):
 
         self.word_frequency=sorted(self.word_frequency,lambda x,y: -1 if x[1]>y[1] else 1)
         while self.valid_word_num<len(self.word_frequency) and self.word_frequency[self.valid_word_num][1]>=self.word_frequency_threshold:
+            if self.valid_word_num<self.word_list_length:
+                self.valid_word_list.append(self.word_frequency[self.valid_word_num][1])
             self.valid_word_num+=1
+
         print 'The vocabulary size in the whole corpura is %d,'%len(self.word_frequency)
         print 'There are %d words whose frequency is above %d'%(self.valid_word_num,self.word_frequency_threshold)
 
@@ -109,6 +113,8 @@ class data_manager(object):
                     self.word_frequency.append([word,frequency])
 
         while self.valid_word_num<len(self.word_frequency) and self.word_frequency[self.valid_word_num][1]>=self.word_frequency_threshold:
+            if self.valid_word_num<self.word_list_length:
+                self.valid_word_list.append(self.word_frequency[self.valid_word_num][1])
             self.valid_word_num+=1
         print 'Load %d words from %s'%(len(self.word_frequency),self.dict_file)
         print 'There are %d words whose frequency is above %d'%(self.valid_word_num,self.word_frequency_threshold)
@@ -225,6 +231,7 @@ class data_manager(object):
             self.init_batch_gen(set_label=set_label,file_list=None,permutation=True)
             new_epoch=True
         input_matrix=np.zeros([batch_size,self.document_length_threshold,self.sentence_length_threshold],dtype=np.int)
+        input_matrix.fill(self.word_list_length+1)                                 # Padding is set to self.
         masks=np.zeros([batch_size,self.document_length_threshold],dtype=np.int)
         labels=np.zeros([batch_size,self.document_length_threshold],dtype=np.int)
 
@@ -246,7 +253,7 @@ class data_manager(object):
             for sentence_idx in xrange(number_of_sentences):
                 sentence=lines[sentence_idx+1+offset]
                 word_idx_list=map(int,sentence.split(','))
-                word_idx_list=map(lambda x:x if x<self.valid_word_num else self.valid_word_num, word_idx_list)
+                word_idx_list=map(lambda x:x if x<min(self.valid_word_num,self.word_list_length) else self.word_list_length, word_idx_list)
                 if len(word_idx_list)>self.sentence_length_threshold:
                     sentence_offset=random.randint(0,len(word_idx_list)-self.sentence_length_threshold)
                     word_idx_list=word_idx_list[sentence_offset:sentence_offset+self.sentence_length_threshold]
