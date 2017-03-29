@@ -1,0 +1,62 @@
+<hyper_params>
+    <data_process>
+        <data_manager_params>
+            <param name="src_folders" type="list_str">data/documents/neuralsum/dailymail/training_text,data/documents/neuralsum/dailymail/validation_text,data/documents/neuralsum/dailymail/test_text</param>
+            <param name="dest_folders" type="list_str">data/documents/neuralsum/dailymail/training_index,data/documents/neuralsum/dailymail/validation_index,data/documents/neuralsum/dailymail/test_index</param>
+            <param name="dict_file" type="str">data/documents/neuralsum/dailymail/dict.txt</param>
+            <param name="entity_name_file" type="str">data/documents/neuralsum/dailymail/entity.txt</param>
+            <param name="word_frequency_threshold" type="int">100</param>
+            <param name="document_length_threshold" type="int">60</param>
+            <param name="sentence_length_threshold" type="int">100</param>
+            <param name="word_list_length" type="int">40000</param>
+        </data_manager_params>
+        <param name="force" type="bool">True</param>
+        <file_sets>
+            <param name="train" type="list_str">data/documents/neuralsum/dailymail/training_index</param>
+            <param name="validate" type="list_str">data/documents/neuralsum/dailymail/validation_index</param>
+            <param name="test" type="list_str">data/documents/neuralsum/dailymail/test_index</param>
+        </file_sets>
+    </data_process>
+    <network>
+        <sentence_extract_model>
+            <param name="batch_size" type="int">20</param>
+            <param name="sequence_length" type="int">-1</param>
+            <param name="sequence_num" type="int">-1</param>
+            <param name="rnn_size" type="int">750</param>
+            <param name="mlp_neurons" type="list_int">1500,300,60</param>
+            <param name="class_num" type="int">2</param>
+            <param name="vocab_size" type="int">-1</param>
+            <param name="embedding_dim" type="int">-1</param>
+            <param name="filter_sizes" type="list_int">1,2,3,4,5,6,7</param>
+            <param name="feature_map" type="int">300</param>
+            <param name="separator_trainable" type="bool">True</param>
+            <param name="name" type="str">new_demo</param>
+            <param name="grad_clip_norm" type="float">0.2</param>
+            <update_policy>
+                <param name="name" type="str">adam</param>
+                <param name="learning_rate" type="float">0.0005</param>
+                <param name="momentum" type="float"></param>
+                <param name="initial_accumulator_value" type="float"></param>
+                <param name="rho" type="float"></param>
+                <param name="epsilon" type="float">1e-8</param>
+                <param name="decay" type="float"></param>
+                <param name="beta1" type="float">0.9</param>
+                <param name="beta2" type="float">0.999</param>
+            </update_policy>
+        </sentence_extract_model>
+        <param name="batches" type="int">50000</param>
+        <param name="validation_frequency" type="int">5000</param>
+        <param name="model_saved_folder" type="str">model_saved</param>
+        <param name="validation_batches" type="int">5000</param>
+        <param name="begin_batch_idx" type="int">100000</param>
+        <param name="model2load" type="str">model_saved/new_demo_100000.ckpt</param>
+    </network>
+    <embedding>
+        <embedding_manager>
+            <param name="embedding_dim" type="int">100</param>
+        </embedding_manager>
+        <param name="source" type="str">data/embeddings/glove/glove.6B.100d.txt</param>
+        <param name="format" type="str">text</param>
+        <param name="force" type="bool">False</param>
+    </embedding>
+</hyper_params>

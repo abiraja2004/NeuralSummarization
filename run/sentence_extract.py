@@ -55,6 +55,8 @@ batch_num=network_params['batches']
 validation_frequency=network_params['validation_frequency']
 validation_batches=network_params['validation_batches']
 check_err_frequency=max(1,validation_frequency/10)
+begin_batch_idx=0 if not 'begin_batch_idx' in network_params else network_params['begin_batch_idx']
+
 
 sentence_extract_model_params['sequence_length']=my_data_manager.sentence_length_threshold
 sentence_extract_model_params['sequence_num']=my_data_manager.document_length_threshold
@@ -69,13 +71,16 @@ if not os.path.exists(model_saved_folder):
 
 training_loss=[]
 my_network.train_validate_test_init()       # initialization of training
+if 'model2load' in network_params:
+    model2load_file=network_params['model2load']
+    my_network.load_params(model2load_file)
 best_validation_loss=1e8                    # best validation loss
 best_pt=-1                                  # best point in validation
-for batch_idx in xrange(batch_num):
+for batch_idx in xrange(begin_batch_idx,batch_num+begin_batch_idx):
     input_matrix,masks,labels,_=my_data_manager.batch_gen(set_label='train',batch_size=my_network.batch_size,label_policy='min')
     ratio=min(1.0, batch_idx/10000)
     _, loss=my_network.train(input_matrix,masks,labels,ratio)
-    sys.stdout.write('Batch_idx: %d/%d, loss=%.4f\r'%(batch_idx+1,batch_num,loss))
+    sys.stdout.write('Batch_idx: %d/%d, loss=%.4f\r'%(batch_idx+1,batch_num+begin_batch_idx,loss))
     training_loss.append(loss)
 
     if (batch_idx+1)%check_err_frequency==0:        # plot the loss average
