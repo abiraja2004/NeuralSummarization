@@ -19,7 +19,6 @@ class text_manager(object):
     def __init__(self,hyper_params):
         self.fix_dict=hyper_params['fix_dict'] if 'fix_dict' in hyper_params else False
         self.word_list=hyper_params['word_list'] if self.fix_dict==True else []
-        self.index_style=hyper_params['index_style'] if 'index_style' in hyper_params else 'new'
 
     '''
     >>> generate the input of the network
@@ -35,7 +34,7 @@ class text_manager(object):
         sentence_length=network.sequence_length
 
         input_matrix=np.zeros([1,document_length,sentence_length],dtype=np.int)
-        input_matrix.fill(len(self.word_list)+1 if self.fix_dict and self.index_style=='new' else 0 if self.fix_dict and self.index_style=='old' else -1)
+        input_matrix.fill(len(self.word_list)+1 if self.fix_dict else -1)
         masks=np.zeros([1,document_length],dtype=np.int)
 
         sentences=open(file_name,'r').readlines()

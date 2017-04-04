@@ -2,12 +2,15 @@ import sys
 # Python 2/3 compatibility
 if sys.version_info.major==3:
     xrange=range
-sys.insert(0,'./util')
+sys.path.insert(0,'./util')
 from py2py3 import *
 import numpy as np
 import tensorflow as tf
 
-class fastText(object):
+sys.path.insert(0,'./model')
+from __init__ import *
+
+class fastText(base_net):
 
     def __init__(self, hyper_params):
         '''
@@ -29,13 +32,16 @@ class fastText(object):
         self.embedding_dim=hyper_params['embedding_dim']
         self.update_policy=hyper_params['update_policy']
         self.embedding_trainable=hyper_params['embedding_trainable'] if 'embedding_trainable' in hyper_params else True
+        self.grad_clip_norm=hyper_params['grad_clip_norm'] if 'grad_clip_norm' in hyper_params else 1.0
+        self.name='fast_text model' if not 'name' in hyper_params else hyper_params['name']
 
         self.sess=None
         with tf.variable_scope('fastText'):
             if not 'embedding_matrix' in hyper_params:
-                self.embedding_matrix=tf.get_variable('embedding_matrix', shape=[self.vocab_size,self.embedding_dim],
-                    initializer=tf.truncated_normal_initializer(stddev=0.5), dtype=tf.float64)
+                print('Word embeddings are initialized from scrach')
+                self.embedding_matrix=tf.Variable(tf.random_uniform([self.vocab_size+2,self.embedding_dim],-1.0,1.0),dtype=tf.float32)
             else:
+                print('Pre-trained word embeddings are imported')
                 embedding_value=tf.constant(hyper_params['embedding_matrix'])
                 self.embedding_matrix=tf.get_variable('embedding_matrix', initializer=embedding_value)
 
@@ -48,7 +54,7 @@ class fastText(object):
         mask_sum=tf.reduce_sum(self.masks,axis=1)                                                   # of shape [self.batch_size,]
         mask_sum=tf.expand_dims(mask_sum,axis=-1)                                                   # of shape [self.batch_size, 1]
 
-        self.sentence_embedding=tf.div(embedding_sum, mask_sum)                                     # broadcasting mask_sum, the embedding of padded token must be zero
+        self.sentence_embedding=tf.div(embedding_sum, tf.cast(mask_sum, dtype=tf.float32))                                     # broadcasting mask_sum, the embedding of padded token must be zero
 
         # Construct softmax classifier
         with tf.variable_scope('fastText'):
@@ -84,16 +90,26 @@ class fastText(object):
             momentum=0.0 if not 'momentum' in self.update_policy else self.update_policy['momentum']
             epsilon=1e-10 if not 'epsilon' in self.update_policy else self.update_policy['epsilon']
             self.optimizer=tf.train.RMSPropOptimizer(learning_rate, decay, momentum, epsilon)
+        elif self.update_policy['name'].lower() in ['adam']:
+            learning_rate=self.update_policy['learning_rate']
+            beta1=0.9 if not 'beta1' in self.update_policy else self.update_policy['beta1']
+            beta2=0.999 if not 'beta2' in self.update_policy else self.update_policy['beta2']
+            epsilon=1e-8 if not 'epsilon' in self.update_policy else self.update_policy['epsilon']
+            self.optimizer=tf.train.AdamOptimizer(learning_rate, beta1, beta2, epsilon)
         else:
             raise ValueError('Unrecognized Optimizer Category: %s'%self.update_policy['name'])
-        self.update=self.optimizer.minimize(self.loss)
+
+        print('gradient clip is applied, max = %.2f'%self.grad_clip_norm)
+        gradients=self.optimizer.compute_gradients(self.loss)
+        clipped_gradients=[(tf.clip_by_value(grad,-self.grad_clip_norm,self.grad_clip_norm),var) for grad,var in gradients]
+        self.update=self.optimizer.apply_gradients(clipped_gradients)
 
     def train_validate_test_init(self):
         '''
         >>> Initialize the training validation and test phrase
         '''
         self.sess=tf.Session()
-        self.sess.run(tf.global_variable_initializer())
+        self.sess.run(tf.global_variables_initializer())
 
     def train(self,inputs,masks,labels):
         '''
@@ -108,7 +124,7 @@ class fastText(object):
         '''
         >>> Validation phrase
         '''
-        validate_dict={self.inputs:inputs,self.masks=masks,self.labels:labels}
+        validate_dict={self.inputs:inputs,self.masks:masks,self.labels:labels}
         prediction_this_batch, loss_this_batch=self.sess.run([self.prediction,self.loss],feed_dict=validate_dict)
         return prediction_this_batch, loss_this_batch
 
@@ -119,6 +135,12 @@ class fastText(object):
         test_dict={self.inputs:inputs,self.masks:masks}
         prediction_this_batch,=self.sess.run([self.prediction,],feed_dict=test_dict)
         return prediction_this_batch
+
+    def do_summarization(self,file_list,word_list,n_top=5):
+        '''
+        >>> TODO
+        '''
+        print('TODO')
 
     def dump_params(self,file2dump):
         '''

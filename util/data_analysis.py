@@ -6,6 +6,7 @@ if sys.version_info.major==3:
 sys.path.insert(0,'util')
 from py2py3 import *
 import numpy as np
+import random
 import matplotlib.pyplot as plt
 
 '''
@@ -143,15 +144,65 @@ def plot_sentence_length_distribution(file_or_folder_list):
     plt.ylabel('num of sentences')
     plt.show()
 
+def plot_sentence_label_distribution(file_or_folder_list,document_length_threshold,class_num):
+    file_list=[]
+    sentence_length_distribution=[]
+    for file_or_folder in file_or_folder_list:
+        if os.path.isdir(file_or_folder):
+            for file in os.listdir(file_or_folder):
+                if file.split('.')[-1] in ['info',]:
+                    file_list.append(file_or_folder+os.sep+file)
+        elif os.path.isfile(file_or_folder):
+            if file_or_folder.split('.')[-1] in ['info',]:
+                file_list.append(file_or_folder)
+    print('detected %d files in total'%len(file_list))
+
+    sentence_num_by_class_original=[0 for idx in xrange(class_num)]
+    sentence_num_by_class_filtered=[0 for idx in xrange(class_num)]
+    for idx,file in enumerate(file_list):
+        sys.stdout.write('%d/%d file loaded - %.1f%%\r'%(idx+1,len(file_list),float(idx+1)/float(len(file_list))*100))
+        with open(file,'r') as fopen:
+            lines=fopen.readlines()
+            lines=map(lambda x: x if x[-1]!='\n' else x[:-1],lines)
+            labels=map(int,lines[-1].split(','))
+            if len(labels)<=document_length_threshold:
+                for label in labels:
+                    sentence_num_by_class_original[label]+=1
+                    sentence_num_by_class_filtered[label]+=1
+            else:
+                max_pad=len(labels)-document_length_threshold
+                begin_idx=random.randint(0,max_pad)
+                end_idx=begin_idx+document_length_threshold
+                for label_idx,label in enumerate(labels):
+                    sentence_num_by_class_original[label]+=1
+                    if label_idx>=begin_idx and label_idx<end_idx:
+                        sentence_num_by_class_filtered[label]+=1
+    print('')
+    print('Original Text:')
+    for class_idx in xrange(class_num):
+        print('Category %d: %d sentences'%(class_idx,sentence_num_by_class_original[class_idx]))
+    print('Total %d sentences'%(np.sum(sentence_num_by_class_original)))
+    print('Filtered Text of maximum %d sentences'%(document_length_threshold))
+    for class_idx in xrange(class_num):
+        print('Category %d: %d sentences'%(class_idx,sentence_num_by_class_filtered[class_idx]))
+    print('Total %d sentences'%(np.sum(sentence_num_by_class_filtered)))
+
+
 if __name__=='__main__':
 #     if len(sys.argv)!=3:
 #         print('python data_analysis.py <dict_file> <embedding_file>')
 #         exit(0)
 #     plot_word_frequency_distribution(dict_file=sys.argv[1],embedding_file=sys.argv[2])
 
-    if len(sys.argv)<2:
-        print('python data_analysis.py <document_folder_list> ...')
-        exit(0)
+    # if len(sys.argv)<2:
+    #     print('python data_analysis.py <document_folder_list> ...')
+    #     exit(0)
     # plot_document_length_distribution(sys.argv[1:])
-    plot_sentence_length_distribution(sys.argv[1:])
+    # plot_sentence_length_distribution(sys.argv[1:])
+
+    if len(sys.argv)<2:
+        print('Usage: python data_analysis.py <document_folder_list>')
+        exit(0)
+
+    plot_sentence_label_distribution(sys.argv[1:],60,3)
 

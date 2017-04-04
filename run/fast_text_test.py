@@ -5,24 +5,23 @@ if sys.version_info.major==3:
     xrange=range
 sys.path.insert(0,'./util')
 from py2py3 import *
-import tensorflow as tf
 import numpy as np
 
-sys.path.insert(0,'./model')
-sys.path.insert(0,'./util')
+sys.path.insert(0,'util')
+sys.path.insert(0,'model')
 
-import network
-import xml_parser
+import fasttext
 import data_manager
 import embedding_manager
+import xml_parser
 
 if len(sys.argv)!=2:
-    print('python sentence_extract_test.py <config>')
+    print('Usage: python fast_text.py <config>')
     exit(0)
 
-hyper_params=xml_parser.parse(sys.argv[1],flat=False)
+hyper_params=xml_parser.parse(file=sys.argv[1],flat=False)
 
-# Load data
+# Process dataset
 data_process_params=hyper_params['data_process']
 data_manager_params=data_process_params['data_manager_params']
 file_sets=data_process_params['file_sets']
@@ -47,17 +46,16 @@ embedding_matrix=my_embedding_manager.gen_embedding_matrix(my_data_manager)
 # Construct the network
 network_params=hyper_params['network']
 
-sentence_extract_model_params=network_params['sentence_extract_model']
+fasttext_model_params=network_params['fasttext_model']
 model2load=network_params['model2load']
 # Sepecify some key parameters
-assert(sentence_extract_model_params['sequence_length']==my_data_manager.sentence_length_threshold)
-assert(sentence_extract_model_params['sequence_num']==my_data_manager.document_length_threshold)
-assert(sentence_extract_model_params['vocab_size']==my_data_manager.word_list_length)
-assert(sentence_extract_model_params['embedding_dim']==my_embedding_manager.embedding_dim+my_data_manager.extended_bits)
+assert(fasttext_model_params['sequence_length']==my_data_manager.sentence_length_threshold)
+assert(fasttext_model_params['vocab_size']==my_data_manager.word_list_length)
+assert(fasttext_model_params['embedding_dim']==my_embedding_manager.embedding_dim+my_data_manager.extended_bits)
 if 'pretrain_embedding' in network_params and network_params['pretrain_embedding']==True:
     sentence_extract_model_params['embedding_matrix']=embedding_matrix
 
-my_network=network.sentenceExtractorModel(sentence_extract_model_params)
+my_network=fasttext.fastText(fasttext_model_params)
 
 test_case_num=0
 test_right_num=0
@@ -66,21 +64,24 @@ negative_num=0
 my_network.train_validate_test_init()
 my_network.load_params(model2load)
 while True:
-    input_matrix,masks,labels,stop=my_data_manager.batch_gen(set_label='test',batch_size=my_network.batch_size,label_policy='min')
+    input_matrix,masks,labels,stop=my_data_manager.batch_gen(set_label='test',batch_size=my_network.batch_size,label_policy='min',model_tag='fasttext')
     if stop==True:
         break
 
     predictions=my_network.test(input_matrix,masks)
-    masks=np.array(masks).reshape(-1)
-    labels=np.array(labels).reshape(-1)
     predictions=np.array(predictions).reshape(-1)
-    hits=map(lambda x: x[2] if x[0]==x[1] else 0, zip(labels,predictions,masks))
-    positive_bit=map(lambda x: 1 if x[0]==1 and x[1]==1 else 0, zip(labels,masks))
-    negative_bit=map(lambda x: 1 if x[0]==0 and x[1]==1 else 0, zip(labels,masks))
+    labels=np.array(labels).reshape(-1)
+
+    hits=map(lambda x: 1 if x[0]==x[1] else 0, zip(predictions,labels))
+    positive_bit=map(lambda x: 1 if x==1 else 0, labels)
+    negative_bit=map(lambda x: 1 if x==0 else 0, labels)
+
+    test_case_num+=len(labels)
+    test_right_num+=np.sum(hits)
     positive_num+=np.sum(positive_bit)
     negative_num+=np.sum(negative_bit)
-    test_case_num+=np.sum(masks)
-    test_right_num+=np.sum(hits)
+
     sys.stdout.write('test_accuracy=%d/%d=%.1f%%, positive=%d(%.1f%%), negative=%d(%.1f%%)\r'%(test_right_num,test_case_num,float(test_right_num)/float(test_case_num)*100,
-        positive_num,float(positive_num)/float(positive_num+negative_num)*100,negative_num,float(negative_num)/float(positive_num+negative_num)*100))
+        positive_num,float(positive_num)/float(test_case_num)*100,negative_num,float(negative_num)/float(test_case_num)*100))
 print('')
+

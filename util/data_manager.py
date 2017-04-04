@@ -34,6 +34,9 @@ class data_manager(object):
         self.valid_word_num=0                                           # number of words whose frequency is higher than threshold
         self.valid_word_list=[]                                         # valid word list whose length is min(self.word_list_length, self.valid_word_num)
 
+        self.additional_info=[] if not 'additional_info' in hyper_params else hyper_params['additional_info']       # Additional information added to word embedding
+        self.extended_bits=len(self.additional_info)                                                                # Additional dimensions in word embedding
+
         self.word_frequency=[]                      # list of [[word1, frequency1],[word2, frequency2] ...]
         self.entity_name_list=[]
         self.max_length_sentence=0
@@ -43,6 +46,7 @@ class data_manager(object):
 
         self.file_set={}                            # sets of files, like training and test set
         self.file_set_pt={}                         # points for each set of files
+        self.file_set_subpt={}                      # points for each line of a file
 
         # scanning the folder, build src/dest files dictionary, dest files are not created in this part
         for src_folder_or_file, dest_folder_or_file in zip(self.src_folders,self.dest_folders):
@@ -210,6 +214,7 @@ class data_manager(object):
 
         self.file_set[set_label]=np.array(self.file_set[set_label])
         self.file_set_pt[set_label]=0
+        self.file_set_subpt[set_label]=0
         if permutation==True:
             self.file_set[set_label]=np.random.permutation(self.file_set[set_label])
 
@@ -223,61 +228,126 @@ class data_manager(object):
         >>> masks: [batch_size, max_document_length]
         >>> labels: [batch_size, max_document_length]
     '''
-    def batch_gen(self,set_label,batch_size,label_policy):
+    def batch_gen(self,set_label,batch_size,label_policy,model_tag='sentence_extract'):
         if not label_policy in ['min','max','clear']:
             raise ValueError('Unrecognized labeling policy %s'%label_policy)
         if not set_label in self.file_set:
             raise ValueError('Set %s has not been initialized yet'%set_label)
-        if batch_size>len(self.file_set[set_label]):
-            raise ValueError('Too large batch size %d, there are %d documents in total'%(batch_size,len(self.file_set[set_label])))
 
         new_epoch=False
-        if self.file_set_pt[set_label]+batch_size>len(self.file_set[set_label]): # Reach the end of the corpus
-            self.init_batch_gen(set_label=set_label,file_list=None,permutation=True)
-            new_epoch=True
-        input_matrix=np.zeros([batch_size,self.document_length_threshold,self.sentence_length_threshold],dtype=np.int)
-        input_matrix.fill(self.word_list_length+1)                                 # Padding is set to self.
-        masks=np.zeros([batch_size,self.document_length_threshold],dtype=np.int)
-        labels=np.zeros([batch_size,self.document_length_threshold],dtype=np.int)
+        if model_tag.lower() in ['sentence_extract',]:
+            if batch_size>len(self.file_set[set_label]):
+                raise ValueError('Too large batch size %d, there are %d documents in total'%(batch_size,len(self.file_set[set_label])))
 
-        for batch_idx in xrange(batch_size):
-            dest_file=self.dest_file_list[batch_idx+self.file_set_pt[set_label]]
+            if self.file_set_pt[set_label]+batch_size>len(self.file_set[set_label]): # Reach the end of the corpus
+                self.init_batch_gen(set_label=set_label,file_list=None,permutation=True)
+                new_epoch=True
+            input_matrix=np.zeros([batch_size,self.document_length_threshold,self.sentence_length_threshold],dtype=np.int)
+            input_matrix.fill(self.word_list_length+1)                                 # Padding is set to self.
+            masks=np.zeros([batch_size,self.document_length_threshold],dtype=np.int)
+            labels=np.zeros([batch_size,self.document_length_threshold],dtype=np.int)
+
+            for batch_idx in xrange(batch_size):
+                dest_file=self.file_set[set_label][batch_idx+self.file_set_pt[set_label]]
+                lines=open(dest_file,'r').readlines()
+                lines=map(lambda x: x[:-1] if x[-1]=='\n' else x, lines)
+                labels_this_document=map(int,lines[-1].split(','))
+                number_of_sentences=int(lines[0])
+                assert(number_of_sentences+2==len(lines))
+
+                offset=0                                    # Cut short documents which is too long
+                if number_of_sentences>self.document_length_threshold:
+                    offset=random.randint(0,number_of_sentences-self.document_length_threshold)
+                    labels_this_document=labels_this_document[offset:offset+self.document_length_threshold]
+                    number_of_sentences=self.document_length_threshold
+
+                masks_this_document=np.ones([number_of_sentences],dtype=int)
+                for sentence_idx in xrange(number_of_sentences):
+                    sentence=lines[sentence_idx+1+offset]
+                    word_idx_list=map(int,sentence.split(','))
+                    word_idx_list=map(lambda x:x if x<min(self.valid_word_num,self.word_list_length) else self.word_list_length, word_idx_list)
+                    if len(word_idx_list)>self.sentence_length_threshold:
+                        sentence_offset=random.randint(0,len(word_idx_list)-self.sentence_length_threshold)
+                        word_idx_list=word_idx_list[sentence_offset:sentence_offset+self.sentence_length_threshold]
+
+                    input_matrix[batch_idx,sentence_idx,:len(word_idx_list)]=word_idx_list
+                for idx,(label,mask) in enumerate(zip(labels_this_document,masks_this_document)):
+                    if label==2:
+                        if label_policy in ['min',]:
+                            labels_this_document[idx]=0
+                        elif label_policy in ['max',]:
+                            labels_this_document[idx]=1
+                        elif label_policy in ['clear',]:
+                            masks_this_document[idx]=0
+
+                masks[batch_idx,:number_of_sentences]=masks_this_document               # create the mask for this sentence
+                labels[batch_idx,:number_of_sentences]=labels_this_document
+
+            self.file_set_pt[set_label]+=batch_size
+            return input_matrix,masks,labels,new_epoch
+        elif model_tag.lower() in ['fasttext','fast_text',]:
+            input_matrix=np.zeros([batch_size,self.sentence_length_threshold],dtype=np.int)
+            input_matrix.fill(self.word_list_length+1)
+            masks=np.zeros([batch_size,self.sentence_length_threshold],dtype=np.int)
+            labels=np.zeros([batch_size,],dtype=np.int)
+
+            dest_file=self.file_set[set_label][self.file_set_pt[set_label]]
             lines=open(dest_file,'r').readlines()
             lines=map(lambda x: x[:-1] if x[-1]=='\n' else x, lines)
             labels_this_document=map(int,lines[-1].split(','))
             number_of_sentences=int(lines[0])
             assert(number_of_sentences+2==len(lines))
 
-            offset=0                                    # Cut short documents which is too long
-            if number_of_sentences>self.document_length_threshold:
-                offset=random.randint(0,number_of_sentences-self.document_length_threshold)
-                labels_this_document=labels_this_document[offset:offset+self.document_length_threshold]
-                number_of_sentences=self.document_length_threshold
+            batch_idx=0
+            while batch_idx<batch_size:
+                label_this_sentence=labels_this_document[self.file_set_subpt[set_label]]
+                if label_this_sentence!=2 or not label_policy in ['clear',]:
+                    sentence=lines[self.file_set_subpt[set_label]+1]
+                    word_idx_list=map(int,sentence.split(','))
+                    word_idx_list=map(lambda x:x if x<min(self.valid_word_num, self.word_list_length) else self.word_list_length, word_idx_list)
+                    if len(word_idx_list)>self.sentence_length_threshold:
+                        sentence_offset=random.randint(0,len(word_idx_list)-self.sentence_length_threshold)
+                        word_idx_list=word_idx_list[sentence_offset:sentence_offset+self.sentence_length_threshold]
+                    input_matrix[batch_idx,:len(word_idx_list)]=word_idx_list
+                    masks[batch_idx,:len(word_idx_list)].fill(1)
+                    if label_this_sentence==2:
+                        label_this_sentence=1 if label_policy in ['max',] else 0
+                    labels[batch_idx]=label_this_sentence
+                    batch_idx+=1
 
-            masks_this_document=np.ones([number_of_sentences],dtype=int)
-            for sentence_idx in xrange(number_of_sentences):
-                sentence=lines[sentence_idx+1+offset]
-                word_idx_list=map(int,sentence.split(','))
-                word_idx_list=map(lambda x:x if x<min(self.valid_word_num,self.word_list_length) else self.word_list_length, word_idx_list)
-                if len(word_idx_list)>self.sentence_length_threshold:
-                    sentence_offset=random.randint(0,len(word_idx_list)-self.sentence_length_threshold)
-                    word_idx_list=word_idx_list[sentence_offset:sentence_offset+self.sentence_length_threshold]
+                # Next sentence
+                self.file_set_subpt[set_label]+=1
+                if self.file_set_subpt[set_label]==number_of_sentences:
+                    self.file_set_pt[set_label]+=1
+                    self.file_set_subpt[set_label]=0
+                    if self.file_set_pt[set_label]==len(self.file_set[set_label]):
+                        self.init_batch_gen(set_label=set_label,file_list=None,permutation=True)
+                        new_epoch=True
+                    dest_file=self.file_set[set_label][self.file_set_pt[set_label]]
+                    lines=open(dest_file,'r').readlines()
+                    lines=map(lambda x: x[:-1] if x[-1]=='\n' else x, lines)
+                    labels_this_document=map(int,lines[-1].split(','))
+                    number_of_sentences=int(lines[0])
+                    assert(number_of_sentences+2==len(lines))
 
-                input_matrix[batch_idx,sentence_idx,:len(word_idx_list)]=word_idx_list
-            for idx,(label,mask) in enumerate(zip(labels_this_document,masks_this_document)):
-                if label==2:
-                    if label_policy in ['min',]:
-                        labels_this_document[idx]=0
-                    elif label_policy in ['max',]:
-                        labels_this_document[idx]=1
-                    elif label_policy in ['clear',]:
-                        masks_this_document[idx]=0
+            return input_matrix,masks,labels,new_epoch
+        else:
+            raise ValueError('Unrecognized model tag: %s'%model_tag)
 
-            masks[batch_idx,:number_of_sentences]=masks_this_document               # create the mask for this sentence
-            labels[batch_idx,:number_of_sentences]=labels_this_document
-
-        self.file_set_pt[set_label]+=batch_size
-        return input_matrix,masks,labels,new_epoch
+    '''
+    >>> Calculate the additional information besides word embedding
+    '''
+    def additional_dimensions(self,word):
+        ret=[]
+        for tag in self.additional_info:
+            if tag.lower() in ['entity','entity_bit']:
+                if word in self.entity_name_list:
+                    ret.append(1.)
+                else:
+                    ret.append(0.)
+            else:
+                raise ValueError('Unrecognized additional information type: %s'%tag)
+        return np.array(ret)
 
     '''
     >>> find a word in the dictionary, if not exist, return -1

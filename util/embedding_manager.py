@@ -81,17 +81,19 @@ class embedding_manager(object):
     >>> manager: data_manager.data_manager, data manager which contains a word list
     '''
     def gen_embedding_matrix(self,manager):
-        embedding_matrix=np.zeros([manager.word_list_length+2,self.embedding_dim],dtype=np.float32)
+        embedding_matrix=np.zeros([manager.word_list_length+2,self.embedding_dim+manager.extended_bits],dtype=np.float32)
         missing_word_num=0
         print('Generating embedding matrix')
         for idx,(word,frequency) in enumerate(manager.word_frequency[:min(manager.valid_word_num, manager.word_list_length)]):
             sys.stdout.write('%d/%d ... %d word Unrecognized\r'%(idx+1,min(manager.valid_word_num, manager.word_list_length),missing_word_num))
             if word in self.embedding_dict:
-                embedding_matrix[idx]=self.embedding_dict[word]
+                embedding_matrix[idx][:self.embedding_dim]=self.embedding_dict[word]
             else:
-                embedding_matrix[idx]=np.random.randn(self.embedding_dim)*0.5
+                embedding_matrix[idx][:self.embedding_dim]=np.random.randn(self.embedding_dim)*0.5
                 missing_word_num+=1
-        embedding_matrix[manager.word_list_length]=np.random.randn(self.embedding_dim)*0.5
+            embedding_matrix[idx][self.embedding_dim:]=manager.additional_dimensions(word)
+        embedding_matrix[manager.word_list_length][:self.embedding_dim]=np.random.randn(self.embedding_dim)*0.5              # Unimportant words used the shared and randomly initialized embeddings
+        embedding_matrix[manager.word_list_length][self.embedding_dim:]=manager.additional_dimensions(None)
         print('Completed! %d words, including %d unrecognized.'%(min(manager.valid_word_num, manager.word_list_length),missing_word_num))
         return embedding_matrix
 

@@ -7,7 +7,10 @@ from py2py3 import *
 import numpy as np
 import tensorflow as tf
 
-class sentenceExtractorModel(object):
+sys.path.insert(0,'./model')
+from __init__ import *
+
+class sentenceExtractorModel(base_net):
 
     def __init__(self, hyper_params):
         '''
@@ -243,6 +246,60 @@ class sentenceExtractorModel(object):
         if not fine_tune:
             final_prediction_this_batch=self.decision_func(final_prediction_this_batch)
         return final_prediction_this_batch
+
+    def do_summarization(self,file_list,word_list,n_top=5):
+        '''
+        >>> Give the top sentences for each of several documents
+        >>> file_list: list of str: list of document files
+        >>> word_list: list of str: list of words
+        '''
+        document_num=len(file_list)
+        batch_num=(document_num-1)/self.batch_size+1
+        inputs=np.zeros([self.batch_size*batch_num,self.sequence_num,self.sequence_length],dtype=np.int32)
+        masks=np.zeros([self.batch_size*batch_num,self.sequence_num],dtype=np.int32)
+        inputs.fill(self.vocab_size+1)
+
+        sentences=[]
+        def index_sentence(line):
+            words=line.split(' ')
+            idx_list=[]
+            for word in words:
+                if word in word_list:
+                    word_idx=word_list.index(word)
+                    idx_list.append(min(word_idx,self.vocab_size))
+                else:
+                    idx_list.append(self.vocab_size)
+            return idx_list
+        for idx,file in enumerate(file_list):
+            lines=open(file,'r').readlines()
+            lines=map(lambda x:x if x[-1]!='\n' else x[:-1],lines)
+            if len(lines)>self.sequence_num:
+                print('document %s is too long, only consider first %s sentences'%(file,self.sequence_num))
+                lines=lines[:self.sequence_num]
+            sentences.append(lines)
+            masks[idx,:len(lines)].fill(1)
+            lines_word_idx=map(index_sentence,lines)
+            for sentence_idx,line_word_idx in enumerate(lines_word_idx):
+                line_word_idx=line_word_idx[:self.sequence_length]
+                inputs[idx,sentence_idx,:len(line_word_idx)]=line_word_idx
+
+        top_sentence_list=[]
+        labels=np.zeros([self.batch_size,self.sequence_num],dtype=np.float32)
+        ratio=1.0
+        for batch_idx in xrange(batch_num):
+            test_dict={self.inputs:inputs[batch_idx*self.batch_size:(batch_idx+1)*self.batch_size],
+                self.masks:masks[batch_idx*self.batch_size:(batch_idx+1)*self.batch_size],self.labels:labels,self.ratio:ratio}
+            final_prediction_this_batch,=self.sess.run([self.final_prediction,],feed_dict=test_dict)
+            for instance_idx in xrange(self.batch_size):
+                if batch_idx*self.batch_size+instance_idx>=document_num:
+                    break
+                sentence_this_document=sentences[batch_idx*self.batch_size+instance_idx]
+                sentence_num=len(sentence_this_document)
+                real_prediction=final_prediction_this_batch[instance_idx][:sentence_num]
+                sorted_list=sorted(zip(np.arange(sentence_num),real_prediction,sentence_this_document),lambda x,y:1 if x[1]<y[1] else -1)
+                top_sentence_list.append(sorted_list[:n_top])
+        assert(len(top_sentence_list)==document_num)
+        return top_sentence_list
 
     def dump_params(self,file2dump):
         '''

@@ -11,7 +11,7 @@ import traceback
 >>> parse documens in dailymail corpus
 >>> return the following information: url, document sentences, the labels for these sentences, hightlights, entity2name mapping
 '''
-def parse_document(file_name):
+def parse_document(file_name,replace_entity=True):
     try:
         contents=open(file_name,'r').readlines()
         contents=''.join(contents)
@@ -35,7 +35,8 @@ def parse_document(file_name):
         entity_map=sorted(entity_map,lambda x,y: 1 if len(x)<len(y) else -1)
         for entity,name in entity_map:
             entity2name[entity]=name
-            sentence_label=sentence_label.replace(entity,name)
+            if replace_entity:
+                sentence_label=sentence_label.replace(entity,name)
 
         sentence_label=map(lambda x: x[:-1] if x[-1]=='\n' else x, sentence_label.split('\n'))
         sentences=map(lambda x: x.split('\t')[0], sentence_label)
