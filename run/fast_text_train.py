@@ -103,7 +103,7 @@ for batch_idx in xrange(begin_batch_idx,batch_num+begin_batch_idx):
             input_matrix,masks,labels,_=my_data_manager.batch_gen(set_label='validate',batch_size=my_network.batch_size,label_policy='min',model_tag='fasttext')
             _,loss=my_network.validate(input_matrix,masks,labels)
             validation_loss.append(loss)
-            sys.stdout.write('Validation Batch_idx %d/%d, loss=%.4f, average=%.4f\r'%(batch_idx+1,validation_batches,loss,np.mean(validation_loss)))
+            sys.stdout.write('Validation Batch_idx %d/%d, loss=%.4f, average=%.4f\r'%(validation_idx+1,validation_batches,loss,np.mean(validation_loss)))
         if np.mean(validation_loss)<best_validation_loss:
             best_validation_loss=np.mean(validation_loss)
             best_pt=batch_idx+1

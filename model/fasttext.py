@@ -39,7 +39,8 @@ class fastText(base_net):
         with tf.variable_scope('fastText'):
             if not 'embedding_matrix' in hyper_params:
                 print('Word embeddings are initialized from scrach')
-                self.embedding_matrix=tf.Variable(tf.random_uniform([self.vocab_size+2,self.embedding_dim],-1.0,1.0),dtype=tf.float32)
+                self.embedding_matrix=tf.get_variable('embedding_matrix', shape=[self.vocab_size+2, self.embedding_dim],
+                    initializer=tf.random_uniform_initializer(-1.0,1.0))
             else:
                 print('Pre-trained word embeddings are imported')
                 embedding_value=tf.constant(hyper_params['embedding_matrix'])

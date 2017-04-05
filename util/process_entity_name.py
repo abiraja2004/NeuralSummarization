@@ -68,25 +68,25 @@ if __name__=='__main__':
                     for word in sentence:
                         word=str(word.encode('utf8'))
                         # idx_in_word_list=find_item_in_list(word_list,word)
-                        if word in word2idx:
-                            idx_in_word_list=word2idx[word]
-                            sentence_idx_info.append(idx_in_word_list)
-                            word_frequency_list[idx_in_word_list]+=1
+                        if word in document_info['entity2name']:
+                            entity_name=document_info['entity2name'][word]
+                            # idx_in_entity_list=find_item_in_list(entity_list,entity_name)
+                            if entity_name in entity2idx:
+                                idx_in_entity_list=entity2idx[entity_name]
+                                sentence_idx_info.append(-idx_in_entity_list)
+                                entity_frequency_list[idx_in_entity_list]+=1
+                            else:
+                                # print('detected an unknown entity name in file %s: %s, added to entity_list'%(src_folder+os.sep+file,entity_name))
+                                idx_in_entity_list=len(entity_list)
+                                entity2idx[entity_name]=idx_in_entity_list
+                                sentence_idx_info.append(-idx_in_entity_list)
+                                entity_list.append(entity_name)
+                                entity_frequency_list.append(1)
                         else:
-                            if word in document_info['entity2name']:
-                                entity_name=document_info['entity2name'][word]
-                                # idx_in_entity_list=find_item_in_list(entity_list,entity_name)
-                                if entity_name in entity2idx:
-                                    idx_in_entity_list=entity2idx[entity_name]
-                                    sentence_idx_info.append(-idx_in_entity_list)
-                                    entity_frequency_list[idx_in_entity_list]+=1
-                                else:
-                                    # print('detected an unknown entity name in file %s: %s, added to entity_list'%(src_folder+os.sep+file,entity_name))
-                                    idx_in_entity_list=len(entity_list)
-                                    entity2idx[entity_name]=idx_in_entity_list
-                                    sentence_idx_info.append(-idx_in_entity_list)
-                                    entity_list.append(entity_name)
-                                    entity_frequency_list.append(1)
+                            if word in word2idx:
+                                idx_in_word_list=word2idx[word]
+                                sentence_idx_info.append(idx_in_word_list)
+                                word_frequency_list[idx_in_word_list]+=1
                             else:
                                 print('WARNING: unknown word in file %s: %s, marked as 1e10'%(src_folder+os.sep+file,word))
                                 sentence_idx_info.append(1e10)
