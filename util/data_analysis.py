@@ -187,6 +187,88 @@ def plot_sentence_label_distribution(file_or_folder_list,document_length_thresho
         print('Category %d: %d sentences'%(class_idx,sentence_num_by_class_filtered[class_idx]))
     print('Total %d sentences'%(np.sum(sentence_num_by_class_filtered)))
 
+def plot_sentence_label_length_distribution(file_or_folder_list,max_length,class_num):
+    file_list=[]
+    sentence_length_distribution=[]
+    for _ in xrange(class_num):
+        sentence_length_distribution.append([0 for idx in xrange(max_length)])
+
+    for file_or_folder in file_or_folder_list:
+        if os.path.isdir(file_or_folder):
+            for file in os.listdir(file_or_folder):
+                if file.split('.')[-1] in ['info',]:
+                    file_list.append(file_or_folder+os.sep+file)
+        elif os.path.isfile(file_or_folder):
+            if file_or_folder.split('.')[-1] in ['info',]:
+                file_list.append(file_or_folder)
+    print('detected %d files in total'%len(file_list))
+
+    for idx,file in enumerate(file_list):
+        sys.stdout.write('%d/%d file loaded - %.1f%%\r'%(idx+1,len(file_list),float(idx+1)/float(len(file_list))*100))
+        lines=open(file,'r').readlines()
+        lines=map(lambda x: x if x[-1]!='\n' else x[:-1],lines)
+        num_of_sentence=int(lines[0])
+        sentence_length_list=map(lambda x:len(x.split(',')),lines[1:-1])
+        label_list=map(int,lines[-1].split(','))
+        for sentence_length,label in zip(sentence_length_list,label_list):
+            sentence_length=min(max_length,sentence_length)
+            sentence_length_distribution[label][sentence_length-1]+=1
+
+    sentence_length_distribution=np.array(sentence_length_distribution)
+    total_num_sentences=[0 for _ in xrange(max_length)]
+    for length in xrange(max_length):
+        total_num_sentences[length]=np.sum(sentence_length_distribution[:,length])
+    for length in xrange(max_length):
+        if total_num_sentences[length]==0:
+            continue
+        out_str='length = %d\t'%(length+1)
+        for class_idx in xrange(class_num):
+            num=sentence_length_distribution[class_idx,length]
+            prop=float(num)/float(total_num_sentences[length])*100
+            out_str+='%d: %d(%.1f%%)\t'%(class_idx,num,prop)
+        print(out_str)
+
+def plot_sentence_label_position_distribution(file_or_folder_list,max_num,class_num):
+    file_list=[]
+    sentence_position_distribution=[]
+    for _ in xrange(class_num):
+        sentence_position_distribution.append([0 for idx in xrange(max_num)])
+
+    for file_or_folder in file_or_folder_list:
+        if os.path.isdir(file_or_folder):
+            for file in os.listdir(file_or_folder):
+                if file.split('.')[-1] in ['info',]:
+                    file_list.append(file_or_folder+os.sep+file)
+        elif os.path.isfile(file_or_folder):
+            if file_or_folder.split('.')[-1] in ['info',]:
+                file_list.append(file_or_folder)
+    print('detected %d files in total'%len(file_list))
+
+    for idx,file in enumerate(file_list):
+        sys.stdout.write('%d/%d file loaded - %.1f%%\r'%(idx+1,len(file_list),float(idx+1)/float(len(file_list))*100))
+        lines=open(file,'r').readlines()
+        label_list=map(int,lines[-1].split(','))
+        for pos,label in enumerate(label_list):
+            pos=min(max_num-1,pos)
+            try:
+                sentence_position_distribution[label][pos]+=1
+            except:
+                print('file=%s,label=%d,pos=%d'%(file,label,pos))
+                exit(0)
+
+    sentence_position_distribution=np.array(sentence_position_distribution)
+    total_num_sentences=[0 for _ in xrange(max_num)]
+    for pos in xrange(max_num):
+        total_num_sentences[pos]=np.sum(sentence_position_distribution[:,pos])
+    for pos in xrange(max_num):
+        if total_num_sentences[pos]==0:
+            continue
+        out_str='pos = %d\t'%(pos+1)
+        for class_idx in xrange(class_num):
+            num=sentence_position_distribution[class_idx,pos]
+            prop=float(num)/float(total_num_sentences[pos])*100
+            out_str+='%d: %d(%.1f%%)\t'%(class_idx,num,prop)
+        print(out_str)
 
 if __name__=='__main__':
 #     if len(sys.argv)!=3:
@@ -204,5 +286,5 @@ if __name__=='__main__':
         print('Usage: python data_analysis.py <document_folder_list>')
         exit(0)
 
-    plot_sentence_label_distribution(sys.argv[1:],60,3)
-
+    # plot_sentence_label_length_distribution(sys.argv[1:],100,3)
+    plot_sentence_label_position_distribution(sys.argv[1:],60,3)

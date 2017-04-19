@@ -11,53 +11,68 @@ import numpy as np
 sys.path.insert(0,'./model')
 sys.path.insert(0,'./util')
 
-import network
+import data_loader
+import data_generator
+import embedding_loader
+import sentence_extractor
 import xml_parser
-import data_manager
-import embedding_manager
 
 if len(sys.argv)!=2:
-    print('python sentence_extract_test.py <config>')
+    print('Usage: python sentence_extract_test.py <config>')
     exit(0)
 
 hyper_params=xml_parser.parse(sys.argv[1],flat=False)
 
-# Load data
-data_process_params=hyper_params['data_process']
-data_manager_params=data_process_params['data_manager_params']
-file_sets=data_process_params['file_sets']
+# Build word list or entity list
+loader_params=hyper_params['loader']
+data_loader_params=loader_params['data_loader']
+src_folder_list2build_list=loader_params['src_folder_list2build_list']
+dest_folder_list2build_list=loader_params['dest_folder_list2build_list'] if 'dest_folder_list2build_list' in loader_params else None
+src_folder_list2parse=loader_params['src_folder_list2parse']
+dest_folder_list2parse=loader_params['dest_folder_list2parse']
+list_saved_format=loader_params['list_saved_format']
 
-my_data_manager=data_manager.data_manager(data_manager_params)
-my_data_manager.load_dict()
-for key in file_sets:
-    file_set=file_sets[key]
-    my_data_manager.init_batch_gen(set_label=key, file_list=file_set, permutation=True)
+my_data_loader=data_loader.data_loader(data_loader_params)
+# my_data_loader.build_lists(src_folder_list2build_list,dest_folder_list2build_list,list_saved_format)
+my_data_loader.load_dict()
+# my_data_loader.build_idx_files(src_folder_list2parse,dest_folder_list2parse)
+
+# Construct the data_generator
+generator_params=hyper_params['generator_params']
+data_generator_params=generator_params['data_generator_params']
+data_sets=generator_params['data_sets']
+
+my_data_generator=data_generator.data_generator(data_generator_params)
+my_data_generator.load(word_file=my_data_loader.word_list_file, entity_file=my_data_loader.entity_list_file, format=loader_params['list_saved_format'])
+for key in data_sets:
+    my_data_generator.init_batch_gen(set_label=key,file_list=data_sets[key],permutation=True)
 
 # Process word embedding
-embedding_params=hyper_params['embedding']
-embedding_manager_params=embedding_params['embedding_manager']
+embedding_params=hyper_params['embedding_params']
+embedding_loader_params=embedding_params['embedding_loader_params']
 source=embedding_params['source']
 format=embedding_params['format']
-force=embedding_params['force']
+my_embedding_loader=embedding_loader.embedding_loader(embedding_loader_params)
+my_embedding_loader.load_embedding(source=source,format=format)
+embedding_matrix=my_embedding_loader.gen_embedding_matrix(generator=my_data_generator)
 
-my_embedding_manager=embedding_manager.embedding_manager(embedding_manager_params)
-my_embedding_manager.load_embedding(source=source,format=format,force=force)
-embedding_matrix=my_embedding_manager.gen_embedding_matrix(my_data_manager)
-
-# Construct the network
-network_params=hyper_params['network']
-
-sentence_extract_model_params=network_params['sentence_extract_model']
+# Construct the neural network
+network_params=hyper_params['network_params']
+se_model_params=network_params['se_model_params']
+input_extend_tags=network_params['input_extend_tags'] if 'input_extend_tags' in network_params else []
 model2load=network_params['model2load']
-# Sepecify some key parameters
-assert(sentence_extract_model_params['sequence_length']==my_data_manager.sentence_length_threshold)
-assert(sentence_extract_model_params['sequence_num']==my_data_manager.document_length_threshold)
-assert(sentence_extract_model_params['vocab_size']==my_data_manager.word_list_length)
-assert(sentence_extract_model_params['embedding_dim']==my_embedding_manager.embedding_dim+my_data_manager.extended_bits)
-if 'pretrain_embedding' in network_params and network_params['pretrain_embedding']==True:
-    sentence_extract_model_params['embedding_matrix']=embedding_matrix
 
-my_network=network.sentenceExtractorModel(sentence_extract_model_params)
+assert(se_model_params['sequence_length']==my_data_generator.sentence_length_threshold)
+assert(se_model_params['sequence_num']==my_data_generator.document_length_threshold)
+if my_data_generator.enable_entity_bit==False:
+    assert(se_model_params['vocab_size']==my_data_generator.word_list_length+2)
+else:
+    assert(se_model_params['vocab_size']==my_data_generator.word_list_length+my_data_generator.entity_list_length+3)
+assert(se_model_params['embedding_dim']==my_embedding_loader.embedding_dim)
+if 'pretrain_embedding' in network_params and network_params['pretrain_embedding']==True:
+    se_model_params['embedding_matrix']=embedding_matrix
+
+my_network=sentence_extractor.sentence_extractor(se_model_params)
 
 test_case_num=0
 test_right_num=0
@@ -66,11 +81,10 @@ negative_num=0
 my_network.train_validate_test_init()
 my_network.load_params(model2load)
 while True:
-    input_matrix,masks,labels,stop=my_data_manager.batch_gen(set_label='test',batch_size=my_network.batch_size,label_policy='min')
-    if stop==True:
-        break
+    input_matrix,masks,labels,stop,extend_part=my_data_generator.batch_gen(
+        set_label='test',batch_size=my_network.batch_size,label_policy='min',extend_tags=input_extend_tags)
 
-    predictions=my_network.test(input_matrix,masks)
+    predictions=my_network.test(inputs=input_matrix,masks=masks,extend_part=extend_part)
     masks=np.array(masks).reshape(-1)
     labels=np.array(labels).reshape(-1)
     predictions=np.array(predictions).reshape(-1)
@@ -83,4 +97,8 @@ while True:
     test_right_num+=np.sum(hits)
     sys.stdout.write('test_accuracy=%d/%d=%.1f%%, positive=%d(%.1f%%), negative=%d(%.1f%%)\r'%(test_right_num,test_case_num,float(test_right_num)/float(test_case_num)*100,
         positive_num,float(positive_num)/float(positive_num+negative_num)*100,negative_num,float(negative_num)/float(positive_num+negative_num)*100))
+
+    if stop==True:
+        break
+
 print('')
