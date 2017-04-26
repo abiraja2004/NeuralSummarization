@@ -12,7 +12,6 @@ import numpy as np
 sys.path.insert(0,'util')
 sys.path.insert(0,'model')
 
-import network
 import data_loader
 import data_generator
 import embedding_loader

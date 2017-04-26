@@ -4,14 +4,15 @@ import sys
 if sys.version_info.major==3:
     xrange=range
     from builtins import input
-if sys.version_info.major==2:
+    import pickle as cPickle
+else:
     input=raw_input
+    import cPickle
 sys.path.insert(0,'util')
 from py2py3 import *
 import loader
 import random
 import numpy as np
-import cPickle
 
 '''
 >>> data loader
@@ -51,7 +52,10 @@ class data_loader(object):
                     frequency=int(parts[-1])
                     content.append((idx,word,frequency))
         elif format.lower() in ['pkl']:
-            content=cPickle.load(open(file2load,'rb'))
+            if sys.version_info.major==2:
+                content=cPickle.load(open(file2load,'rb'))
+            else:
+                content=cPickle.load(open(file2load,'rb'),encoding='latin1')
         else:
             raise ValueError('Unrecognized list load format: %s'%format)
         return content
@@ -98,7 +102,7 @@ class data_loader(object):
             if sys.version_info.major==2:
                 entity_list_info=sorted(entity_list_info, lambda x,y: -1 if x[0]<y[0] else 1)
             else:
-                entity_list_info=sorted(entity_list_info, lambda x:x[0], reverse=False)
+                entity_list_info=sorted(entity_list_info, key=lambda x:x[0], reverse=False)
             entity_max_idx=entity_list_info[-1][0]
             self.entity_list=[None for idx in xrange(entity_max_idx)]
             self.entity_frequency=[None for idx in xrange(entity_max_idx)]

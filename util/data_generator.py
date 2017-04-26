@@ -3,13 +3,15 @@ import sys
 # Python 2/3 compatibility
 if sys.version_info.major==3:
     xrange=range
+    import pickle as cPickle
+else:
+    import cPickle
 sys.path.insert(0,'util')
 from py2py3 import *
 import loader
 import data_loader
 import random
 import numpy as np
-import cPickle
 
 '''
 >>> dataset manager
@@ -56,7 +58,10 @@ class data_generator(object):
                     frequency=int(parts[-1])
                     frequency_list.append((idx,word,frequency))
         elif format.lower() in ['pkl',]:
-            frequency_list=cPickle.load(open(file,'rb'))
+            if sys.version_info.major==2:
+                frequency_list=cPickle.load(open(file,'rb'))
+            else:
+                frequency_list=cPickle.load(open(file,'rb'),encoding='latin1')
 
         return frequency_list
 
@@ -73,7 +78,10 @@ class data_generator(object):
             self.word_frequency=self.__parse_file__(word_file, format)
 
             # sort
-            self.word_frequency=sorted(self.word_frequency,lambda x,y: 1 if x[2]<y[2] else -1)
+            if sys.version_info.major==2:
+                self.word_frequency=sorted(self.word_frequency,lambda x,y: 1 if x[2]<y[2] else -1)
+            else:
+                self.word_frequency=sorted(self.word_frequency,key=lambda x:x[2],reverse=True)
             # [0,self.word_list_length+1) is reserved for ordinary word
             for sorted_idx,(original_idx,word,frequency) in enumerate(self.word_frequency):
                 if sorted_idx>=self.word_list_length or frequency<self.word_frequency_threshold:
@@ -98,7 +106,10 @@ class data_generator(object):
                 self.entity_frequency=self.__parse_file__(entity_file, entity_format)
                 
                 # sort
-                self.entity_frequency=sorted(self.entity_frequency,lambda x,y: 1 if x[2]<y[2] else -1)
+                if sys.version_info.major==2:
+                    self.entity_frequency=sorted(self.entity_frequency,lambda x,y: 1 if x[2]<y[2] else -1)
+                else:
+                    self.entity_frequency=sorted(self.entity_frequency,key=lambda x:x[2],reverse=True)
                 # [self.word_list_length+1, self.word_list_length+self.entity_list_length+2)
                 for sorted_idx,(original_idx,word,frequency) in enumerate(self.entity_frequency):
                     if sorted_idx>=self.entity_list_length:
@@ -288,7 +299,7 @@ class data_generator(object):
                 labels[batch_idx,:number_of_sentences]=labels_this_document
 
                 self.file_set_pt[set_label]+=1
-                if self.file_set_pt[set_label]==len(self.file_set):
+                if self.file_set_pt[set_label]==len(self.file_set[set_label]):
                     end_of_epoch=True
                     self.init_batch_gen(set_label,file_list=None,permutation=True)
 

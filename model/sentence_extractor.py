@@ -269,13 +269,14 @@ class sentence_extractor(base_net):
         '''
         labels=np.zeros([self.batch_size, self.sequence_num], dtype=np.float32)         # Fake labels
         ratio=1.0                                                                       # ratio has to be 1.0 to make prediction label independent
+        test_dict={self.inputs:inputs, self.masks:masks, self.labels:labels, self.ratio:ratio}
+
         for key in self.input_extensions:
             if not key in extend_part:
                 raise ValueError('%s is necessary as the extended part of input of neural network, while it is missing'%(key))
             else:
                 test_dict[self.input_extensions[key]]=extend_part[key]
 
-        test_dict={self.inputs:inputs, self.masks:masks, self.labels:labels, self.ratio:ratio}
         final_prediction_this_batch,=self.sess.run([self.final_prediction,],feed_dict=test_dict)
         if not fine_tune:
             final_prediction_this_batch=self.decision_func(final_prediction_this_batch)
@@ -295,7 +296,7 @@ class sentence_extractor(base_net):
             pure_file=file.split(os.sep)[-1]
             dest_file='.'.join(pure_file.split('.')[:-1])+'.info'
             raw_text_list.append(file)
-            idx_text_list.append(folder2store+dest_file)
+            idx_text_list.append(folder2store+os.sep+dest_file)
         data_generator.gen_idx_from_text(raw_text_list=raw_text_list,idx_text_list=idx_text_list)
         data_generator.init_batch_gen(set_label='tmp',file_list=idx_text_list,permutation=False,force=True)
         stop=False

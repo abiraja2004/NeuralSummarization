@@ -5,14 +5,15 @@ import sys
 if sys.version_info.major==3:
     xrange=range
     from builtins import input
+    import pickle as cPickle
 else:
     input=raw_input
+    import cPickle
 sys.path.insert(0,'./util')
 from py2py3 import *
 import tensorflow as tf
 import numpy as np
 import shutil
-import cPickle
 
 sys.path.insert(0,'./model')
 sys.path.insert(0,'./util')
@@ -68,14 +69,14 @@ class laucher(object):
     '''
     def run(self, in_file):
         top_sentence_list=self.model.do_summarization(file_list=[in_file,],folder2store=self.folder2store,
-            data_generator=self.generator,n_top=self.n_top)
+            data_generator=self.generator,n_top=self.n_top)[0]
         # sort by the sentence order in original document
         if sys.version_info.major==2:
             top_sentence_list=sorted(top_sentence_list,lambda x,y: -1 if x[0]<y[0] else 1)
         else:
             top_sentence_list=sorted(top_sentence_list,key=lambda x:x[0],reverse=False)
         out_str=''
-        for sentence_idx,prediction,sentence in top_sentence_list[0]:
+        for sentence_idx,prediction,sentence in top_sentence_list:
             out_str+='%d (%.3f) %s\n'%(sentence_idx,prediction,sentence)
         return out_str
 
@@ -92,7 +93,10 @@ class laucher(object):
 
         word2idx={}     # map<str -> (idx,entity_bit)>
         if format.lower() in ['pkl']:
-            info=cPickle.load(open(file2load,'rb'))
+            if sys.version_info.major==2:
+                info=cPickle.load(open(file2load,'rb'))
+            else:
+                info=cPickle.load(open(file2load,'rb'),encoding='latin1')
             for word,frequency,global_idx,local_idx in info['word_list']:
                 word2idx[word]=(local_idx,0)
             if 'entity_list' in info:
